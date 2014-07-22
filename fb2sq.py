@@ -6,10 +6,16 @@ from cStringIO import StringIO
 from lxml import etree
 
 def parse_args():
-	parser = argparse.ArgumentParser(description='Convert FindBugs rules to SonarQube rules.', usage='%(prog)s [--html] fbrules-directory [prefix]')
+	parser = argparse.ArgumentParser(
+		description='Convert FindBugs rules to SonarQube rules.', 
+		usage='%(prog)s [--html] fbrules-directory [component-name]', 
+		formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=30)
+	)
 	parser.add_argument('fbrules_dir', metavar='fbrules-directory', help='directory which contains findbugs.xml and messages.xml')
-	parser.add_argument('plugin_name', metavar='plugin-name', nargs='?', help='plugin name')
-	parser.add_argument('--html', help='export HTML files', action='store_true')
+	parser.add_argument('component_name', metavar='component-name', nargs='?', help='component name (core, fb-contrib, find-sec-bugs, ...)')
+	parser.add_argument('--html', help='export HTML files and relevant properties file', action='store_true')
+	parser.add_argument('-e', '--exclude', metavar='KEY', help='rule key to completely exclude', action='append')
+	parser.add_argument('-c', '--comment', metavar='KEY', help='rule key to comment out', action='append')
 	return parser.parse_args()
 
 def init(args):
@@ -46,11 +52,24 @@ def write_file_data(filename, contents, append = False):
 		if fh: fh.close()
 	return True
 
+def parse_keys(value):
+	parsed_keys = {}
+	if value is not None:
+		for rawkey in value:
+			keys = rawkey.split(',')
+			for key in keys:
+				parsed_keys[key] = True
+	return parsed_keys
+
 def parse_rules(args, fbplugin_xml, messages_xml):
+	
+	exclude_keys = parse_keys(args.exclude)
+	comment_keys = parse_keys(args.comment)
+	
 	tree = etree.parse(fbplugin_xml)
 	root = tree.getroot()
-
-	prefix = args.plugin_name
+	
+	prefix = args.component_name
 	if not prefix:
 		pluginid = root.get('pluginid')
 		dot = pluginid.rindex('.')
@@ -58,6 +77,8 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 			prefix = pluginid[dot+1:]
 		else:
 			prefix = pluginid
+	if prefix == 'core':
+		prefix = 'findbugs'
 	
 	rule_type_to_category = {}
 	for e in root.iter("BugPattern"):
@@ -79,6 +100,9 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 		fb_details =  e.find("Details")
 		fb_shortdescr =  e.find("ShortDescription")
 		fb_key = e.get("type")
+		
+		if fb_key in exclude_keys:
+			continue
 		
 		sq_key = fb_key
 		sq_priority = "INFO"
@@ -108,7 +132,9 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 			if not write_file_data(filename, sq_descr + '\n'):
 				sys.exit('error: could not write "%s"' % filename) 
 		
-		sq_name = sq_name  + ' [' + prefix + ']'
+		if prefix != 'findbugs':
+			sq_name = sq_name  + ' [' + prefix + ']'
+		
 		rules.write('  <rule key="%s" priority="%s">\n' % (sq_key, sq_priority))
 		rules.write('    <name><![CDATA[%s]]></name>\n' % sq_name)
 		rules.write('    <configKey><![CDATA[%s]]></configKey>\n' % sq_config_key)
