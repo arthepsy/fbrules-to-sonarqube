@@ -93,6 +93,13 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 		sq_descr = re.sub(r'\t\t\t', '', fb_details.text.lstrip().rstrip())
 		sq_descr = re.sub(r'\t', '  ', sq_descr)
 		
+		if len(sq_descr.strip()) == 0:
+			subxml = etree.fromstring(etree.tostring(fb_details))
+			etree.cleanup_namespaces(subxml)
+			sq_descr = re.sub(r'\n            ', '\n', ''.join([etree.tostring(e, pretty_print=False) for e in subxml]))
+			if len(sq_descr.strip()) == 0:
+				sq_descr = sq_name
+		
 		if args.html:
 			if not write_file_data(properties_file, 'rule.findbugs.%s.name=%s\n' % (sq_key, sq_name), True):
 				sys.exit('error: could not write "%s"' % properties_file)
