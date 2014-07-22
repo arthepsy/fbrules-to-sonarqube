@@ -4,5 +4,5 @@ if [ X"$1" == X"" ]; then
 	exit 1
 fi	
 
-$(dirname $0)/fbp2sq.py $1/plugin/src/main/resources/metadata > rules-findsecbugs.xml
+$(dirname $0)/fbp2sq.py --html $1/plugin/src/main/resources/metadata 
 
