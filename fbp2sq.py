@@ -72,8 +72,8 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 	root = tree.getroot()
 
 	rules = StringIO();
-	rules.write('<!-- %s -->' % prefix)
-	rules.write('<rules>\n')
+	rules.write('<!-- %s -->\n' % prefix)
+	rules.write('<rules>\n\n')
 
 	for e in root.iter("BugPattern"):
 		fb_details =  e.find("Details")
@@ -102,14 +102,13 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 				sys.exit('error: could not write "%s"' % filename) 
 		
 		sq_name = sq_name  + ' [' + prefix + ']'
+		rules.write('  <rule key="%s" priority="%s">\n' % (sq_key, sq_priority))
+		rules.write('    <name><![CDATA[%s]]></name>\n' % sq_name)
+		rules.write('    <configKey><![CDATA[%s]]></configKey>\n' % sq_config_key)
+		rules.write('    <description>\n<![CDATA[\n%s\n]]>\n    </description>\n' % sq_descr)
+		rules.write('  </rule>\n\n')
 		
-		rules.write('  <rule key="%s" priority="%s">' % (sq_key, sq_priority))
-		rules.write('    <name><![CDATA[%s]]></name>' % sq_name)
-		rules.write('    <configKey><![CDATA[%s]]></configKey>' % sq_config_key)
-		rules.write('    <description>\n<![CDATA[\n%s\n]]>\n    </description>' % sq_descr)
-		rules.write('  </rule>\n')
-		
-	rules.write('</rules>')
+	rules.write('</rules>\n')
 	
 	filename = 'rules-%s.xml' % prefix
 	if not write_file_data(filename, rules.getvalue()):
