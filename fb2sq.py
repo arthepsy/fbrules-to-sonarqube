@@ -5,6 +5,16 @@ import argparse
 from cStringIO import StringIO
 from lxml import etree
 
+categories = {"BAD_PRACTICE":"Bad practice",
+              "CORRECTNESS":"Correctness",
+              "MT_CORRECTNESS": "Multithreaded correctness",
+              "I18N": "Internationalization",
+              "EXPERIMENTAL": "Experimental",
+              "MALICIOUS_CODE": "Malicious code",
+              "PERFORMANCE": "Performance",
+              "SECURITY": "Security",
+              "STYLE": "Style"}
+
 def parse_args():
 	parser = argparse.ArgumentParser(
 		description='Convert FindBugs rules to SonarQube rules.', 
@@ -51,6 +61,12 @@ def write_file_data(filename, contents, append = False):
 	finally:
 		if fh: fh.close()
 	return True
+
+def get_category(name):
+	if name in categories:
+		return categories[name]
+	else:
+		return name[0] + name[1:].lower()
 
 def parse_keys(value):
 	parsed_keys = {}
@@ -110,8 +126,8 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 		if sq_key in rule_type_to_category:
 			sq_cat = rule_type_to_category[sq_key].strip()
 		if len(sq_cat) == 0:
-			sq_cat = 'UNKNOWN'
-		sq_cat = sq_cat[0] + sq_cat[1:].lower()
+			sq_cat = 'MISCELLANEOUS'
+		sq_cat = get_category(sq_cat)
 		sq_name = sq_cat + " - " + fb_shortdescr.text.strip()
 		sq_config_key = sq_key
 		sq_descr = re.sub(r'\t\t\t', '', fb_details.text.lstrip().rstrip())
