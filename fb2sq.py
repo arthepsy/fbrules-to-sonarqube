@@ -141,6 +141,12 @@ def get_priority(rule_key):
 	else:
 		return "INFO"
 
+def get_order(rule_key):
+	if rule_key in order:
+		return order[rule_key]
+	else:
+		return [0, 0, 0]
+
 def get_deprecation_text(rule_key):
 	text = ''
 	if rule_key in deprecated:
@@ -199,10 +205,11 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 	tree = etree.parse(messages_xml)
 	root = tree.getroot()
 
-	rules = StringIO();
-	rules.write('<!-- %s -->\n' % prefix)
-	rules.write('<rules>\n\n')
-
+	orules = {0:StringIO()}
+	sq_rule_maxnr = 0
+	sq_prop_maxnr = 0
+	sq_prof_maxnr = 0
+	
 	for e in root.iter("BugPattern"):
 		fb_details =  e.find("Details")
 		fb_shortdescr =  e.find("ShortDescription")
@@ -212,6 +219,13 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 			continue
 		
 		sq_key = fb_key
+		[sq_rule_nr, sq_prop_nr, sq_prof_nr] = get_order(sq_key)
+		if not sq_rule_nr in orules:
+			orules[sq_rule_nr] = StringIO()
+			if sq_rule_maxnr < sq_rule_nr:
+				sq_rule_maxnr = sq_rule_nr
+		rule =  orules[sq_rule_nr]
+		
 		sq_priority = get_priority(sq_key)
 		sq_cat = ''
 		if sq_key in rule_type_to_category:
@@ -243,19 +257,27 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 				sys.exit('error: could not write "%s"' % filename) 
 		
 		if findbugs_core:
-			rules.write('  <rule key="%s">\n' % sq_key)
-			rules.write('    <priority>%s</priority>\n' % sq_priority)
+			rule.write('  <rule key="%s">\n' % sq_key)
+			rule.write('    <priority>%s</priority>\n' % sq_priority)
 		else:
-			rules.write('  <rule key="%s" priority="%s">\n' % (sq_key, sq_priority))
+			rule.write('  <rule key="%s" priority="%s">\n' % (sq_key, sq_priority))
 			#sq_name = sq_name  + ' [' + prefix + ']'
-		rules.write('    <name><![CDATA[%s]]></name>\n' % sq_name)
-		rules.write('    <configKey><![CDATA[%s]]></configKey>\n' % sq_config_key)
+		rule.write('    <name><![CDATA[%s]]></name>\n' % sq_name)
+		rule.write('    <configKey><![CDATA[%s]]></configKey>\n' % sq_config_key)
 		if sq_key in deprecated:
-			rules.write('    <status>DEPRECATED</status>\n')
+			rule.write('    <status>DEPRECATED</status>\n')
 		if not findbugs_core:
-			rules.write('    <description><![CDATA[\n\n%s\n\n\t\t]]></description>\n' % sq_descr)
-		rules.write('  </rule>\n\n')
-		
+			rule.write('    <description><![CDATA[\n\n%s\n\n\t\t]]></description>\n' % sq_descr)
+		rule.write('  </rule>\n\n')
+	
+	rules = StringIO();
+	rules.write('<!-- %s -->\n' % prefix)
+	rules.write('<rules>\n\n')
+	for i in range(1, sq_rule_maxnr + 1):
+		if i in orules:
+			rules.write(orules[i].getvalue())
+	rules.write(orules[0].getvalue())
+	#orules = {}
 	rules.write('</rules>\n')
 	
 	filename = os.path.join(output_dir, 'rules-%s.xml' % prefix)
