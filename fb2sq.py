@@ -228,12 +228,14 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 		
 		if findbugs_core:
 			rules.write('  <rule key="%s">\n' % sq_key)
-			rules.write('    <priority="%s">\n' % sq_priority)
+			rules.write('    <priority>%s</priority>\n' % sq_priority)
 		else:
 			rules.write('  <rule key="%s" priority="%s">\n' % (sq_key, sq_priority))
 			#sq_name = sq_name  + ' [' + prefix + ']'
 		rules.write('    <name><![CDATA[%s]]></name>\n' % sq_name)
 		rules.write('    <configKey><![CDATA[%s]]></configKey>\n' % sq_config_key)
+		if sq_key in deprecated:
+			rules.write('    <status>DEPRECATED</status>\n')
 		if not findbugs_core:
 			rules.write('    <description><![CDATA[\n\n%s\n\n\t\t]]></description>\n' % sq_descr)
 		rules.write('  </rule>\n\n')
