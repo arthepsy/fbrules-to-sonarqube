@@ -21,6 +21,7 @@ default_priorities = {"BLOCKER":1, "CRITICAL":1, "MAJOR":1, "MINOR":1, "INFO":1}
 priorities = {}
 deprecated = {}
 disabled = {}
+order = {}
 
 
 def parse_args():
@@ -43,6 +44,12 @@ def getpath(path_file):
 		cdir = os.path.dirname(os.path.realpath(__file__))
 		return os.path.join(cdir, path_file)
 
+def getint(s):
+	try:
+		return int(s)
+	except ValueError:
+		return 0
+
 def init(args):
 	fbplugin_xml = os.path.join(args.fbrules_dir, 'findbugs.xml')
 	if not os.path.exists(fbplugin_xml):
@@ -62,22 +69,31 @@ def init(args):
 	if os.path.exists(sq_rule_file):
 		#prog = re.compile(r'^([^:]*):(.*)$')
 		for line in open(sq_rule_file):
+			if line.startswith('#'): continue
 			props = line.split(':')
-			if (len(props) < 2): continue
+			
+			if (len(props) < 5): continue
 			rule_key = props[0].strip()
-			priority = props[1].strip()
 			if len(rule_key) == 0: continue
+			
+			sq_rule_nr = getint(props[1])
+			sq_prop_nr = getint(props[2])
+			sq_prof_nr = getint(props[3])
+			order[rule_key] = [sq_rule_nr, sq_prop_nr, sq_prof_nr]
+			
+			priority = props[4].strip()
 			if (len(priority) > 0):
 				priorities[rule_key] = priority
-			if (len(props) < 3): continue
-			state = props[2].strip()
-			if state == 'DEPRECATED':
-				reason = props[3].strip() if len(props) > 3 else ''
-				deprecated[rule_key] = reason
-			elif state == 'DISABLED':
-				disabled[rule_key] = True
-			else:
-				sys.exit('error: "%s" is invalid rule state.' % state)
+			if (len(props) < 6): continue
+			state = props[5].strip()
+			if (state):
+				if state == 'DEPRECATED':
+					reason = props[6].strip() if len(props) > 6 else ''
+					deprecated[rule_key] = reason
+				elif state == 'DISABLED':
+					disabled[rule_key] = True
+				else:
+					sys.exit('error: "%s" is invalid rule state.' % state)
 	
 	return [fbplugin_xml, messages_xml]
 
