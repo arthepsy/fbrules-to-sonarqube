@@ -14,6 +14,8 @@ categories = {"BAD_PRACTICE":"Bad practice",
               "PERFORMANCE": "Performance",
               "SECURITY": "Security",
               "STYLE": "Style"}
+priorities_file = 'rule.priorities'
+priorities = {}
 
 def parse_args():
 	parser = argparse.ArgumentParser(
@@ -40,6 +42,13 @@ def init(args):
 	if args.html:
 		if not create_html_dir():
 			sys.exit('error: could not create directory for html files')
+	
+	if os.path.exists(priorities_file):
+		prog = re.compile(r'^([^:]*):(.*)$')
+		for line in open(priorities_file):
+			mx = prog.match(line)
+			if mx is not None:
+				priorities[mx.group(1)]=mx.group(2)
 	
 	return [fbplugin_xml, messages_xml]
 
@@ -68,6 +77,12 @@ def get_category(name):
 	else:
 		return name[0] + name[1:].lower()
 
+def get_priority(rule_key):
+	if rule_key in priorities:
+		return priorities[rule_key]
+	else:
+		return "INFO"
+
 def parse_keys(value):
 	parsed_keys = {}
 	if value is not None:
@@ -95,6 +110,7 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 			prefix = pluginid
 	if prefix == 'core':
 		prefix = 'findbugs'
+	findbugs_core = (prefix == 'findbugs')
 	
 	rule_type_to_category = {}
 	for e in root.iter("BugPattern"):
@@ -105,6 +121,8 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 		if not write_file_data(properties_file, None):
 			sys.exit('error: could not write "%s"' % properties_file)
 	
+	#parser = etree.XMLParser(ns_clean=True, strip_cdata=False, compact=False, remove_blank_text=True)
+	#tree = etree.parse(messages_xml, parser)
 	tree = etree.parse(messages_xml)
 	root = tree.getroot()
 
@@ -121,7 +139,7 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 			continue
 		
 		sq_key = fb_key
-		sq_priority = "INFO"
+		sq_priority = get_priority(sq_key)
 		sq_cat = ''
 		if sq_key in rule_type_to_category:
 			sq_cat = rule_type_to_category[sq_key].strip()
@@ -145,16 +163,19 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 				sys.exit('error: could not write "%s"' % properties_file)
 			
 			filename = 'html/%s.html' % sq_key
-			if not write_file_data(filename, sq_descr + '\n'):
+			if not write_file_data(filename, sq_descr):
 				sys.exit('error: could not write "%s"' % filename) 
 		
-		if prefix != 'findbugs':
-			sq_name = sq_name  + ' [' + prefix + ']'
-		
-		rules.write('  <rule key="%s" priority="%s">\n' % (sq_key, sq_priority))
+		if findbugs_core:
+			rules.write('  <rule key="%s">\n' % sq_key)
+			rules.write('    <priority="%s">\n' % sq_priority)
+		else:
+			rules.write('  <rule key="%s" priority="%s">\n' % (sq_key, sq_priority))
+			#sq_name = sq_name  + ' [' + prefix + ']'
 		rules.write('    <name><![CDATA[%s]]></name>\n' % sq_name)
 		rules.write('    <configKey><![CDATA[%s]]></configKey>\n' % sq_config_key)
-		rules.write('    <description>\n<![CDATA[\n%s\n]]>\n    </description>\n' % sq_descr)
+		if not findbugs_core:
+			rules.write('    <description><![CDATA[\n\n%s\n\n\t\t]]></description>\n' % sq_descr)
 		rules.write('  </rule>\n\n')
 		
 	rules.write('</rules>\n')
