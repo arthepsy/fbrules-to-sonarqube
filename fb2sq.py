@@ -14,8 +14,10 @@ categories = {"BAD_PRACTICE":"Bad practice",
               "PERFORMANCE": "Performance",
               "SECURITY": "Security",
               "STYLE": "Style"}
-priorities_file = 'rule.priorities'
+sq_rule_file = 'sq_rules.dat'
 priorities = {}
+deprecated = {}
+disabled = {}
 
 def parse_args():
 	parser = argparse.ArgumentParser(
@@ -43,12 +45,25 @@ def init(args):
 		if not create_html_dir():
 			sys.exit('error: could not create directory for html files')
 	
-	if os.path.exists(priorities_file):
-		prog = re.compile(r'^([^:]*):(.*)$')
-		for line in open(priorities_file):
-			mx = prog.match(line)
-			if mx is not None:
-				priorities[mx.group(1)]=mx.group(2)
+	if os.path.exists(sq_rule_file):
+		#prog = re.compile(r'^([^:]*):(.*)$')
+		for line in open(sq_rule_file):
+			props = line.split(':')
+			if (len(props) < 2): continue
+			rule_key = props[0].strip()
+			priority = props[1].strip()
+			if len(rule_key) == 0: continue
+			if (len(priority) > 0):
+				priorities[rule_key] = priority
+			if (len(props) < 3): continue
+			state = props[2].strip()
+			if state == 'DEPRECATED':
+				reason = props[3].strip() if len(props) > 3 else ''
+				deprecated[rule_key] = reason
+			elif state == 'DISABLED':
+				disabled[rule_key] = True
+			else:
+				sys.exit('error: "%s" is invalid rule state' % state)
 	
 	return [fbplugin_xml, messages_xml]
 
@@ -82,6 +97,21 @@ def get_priority(rule_key):
 		return priorities[rule_key]
 	else:
 		return "INFO"
+
+def get_deprecation_text(rule_key):
+	text = ''
+	if rule_key in deprecated:
+		reason = deprecated[rule_key]
+		#reason = ',,,'
+		text = '},{rule:squid:'.join(filter(None, reason.split(',')))
+		text = '{rule:squid:' + text + '}'
+		text = text.replace('{rule:squid:}', '').strip()
+		comma = text.rfind(',')
+		if comma > -1:
+			text = text[:comma] + ' and ' + text[comma+1:]
+		if len(text) > 0:
+			text = '\n\n<p>\nThis rule is deprecated, use %s instead.\n</p>\n' % text
+	return text
 
 def parse_keys(value):
 	parsed_keys = {}
@@ -157,6 +187,9 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 			sq_descr = re.sub(r'\n            ', '\n', ''.join([etree.tostring(e, pretty_print=False) for e in subxml]))
 			if len(sq_descr.strip()) == 0:
 				sq_descr = sq_name
+		
+		if sq_key in deprecated:
+			sq_descr = sq_descr + get_deprecation_text(sq_key)
 		
 		if args.html:
 			if not write_file_data(properties_file, 'rule.findbugs.%s.name=%s\n' % (sq_key, sq_name), True):
