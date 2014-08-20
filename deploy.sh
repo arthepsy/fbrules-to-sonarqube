@@ -35,7 +35,7 @@ for r in rules-*.xml; do
 done
 
 ${_cdir}/generate_profile.sh
-cp ${_odir}/profile-findbugs.xml ${_dir2}/
+cp ${_odir}/profile-findbugs.xml ${_dir1}/
 
 ${_cdir}/generate_properties.sh
 cp ${_odir}/findbugs.properties ${_dir2}/
