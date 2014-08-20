@@ -53,5 +53,5 @@ _order=`grep pattern= ${_dir1}/profile-findbugs.xml | cut -d '"' -f 2 | cat -n |
 for i in ${_order}; do
 	_nr=$(echo $i | cut -d ':' -f 1)
 	_rk=$(echo $i | cut -d ':' -f 2)
-	sed -e "s/$_rk:\([0-9]*\):\([0-9]*\):\([0-9]*\):/${_rk}:\1:\1:${_nr}:/" ${_sqrules} > ${_tmp} && mv ${_tmp} ${_sqrules} 
+	sed -e "s/$_rk:\([0-9]*\):\([0-9]*\):\([0-9]*\):/${_rk}:\1:\2:${_nr}:/" ${_sqrules} > ${_tmp} && mv ${_tmp} ${_sqrules} 
 done
