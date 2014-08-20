@@ -162,6 +162,20 @@ def get_deprecation_text(rule_key):
 			text = '\n\n<p>\nThis rule is deprecated, use %s instead.\n</p>\n' % text
 	return text
 
+def get_writer(ordered, nr):
+	if not nr in ordered:
+		ordered[nr] = StringIO()
+		if ordered['_max'] < nr:
+			ordered['_max'] = nr
+	return ordered[nr]
+
+def gen_output(output, ordered):
+	for i in range(1, ordered['_max'] + 1):
+		if i in ordered:
+			output.write(ordered[i].getvalue())
+	output.write(ordered[0].getvalue())
+	#ordered = {}
+
 def parse_keys(value):
 	parsed_keys = {}
 	if value is not None:
@@ -194,21 +208,16 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 	rule_type_to_category = {}
 	for e in root.iter("BugPattern"):
 		rule_type_to_category[e.get('type')] = e.get('category')
-
+	
 	properties_file = os.path.join(output_dir, 'findbugs-%s.properties' % prefix)
-	if args.html:
-		if not write_file_data(properties_file, None):
-			sys.exit('error: could not write "%s"' % properties_file)
 	
 	#parser = etree.XMLParser(ns_clean=True, strip_cdata=False, compact=False, remove_blank_text=True)
 	#tree = etree.parse(messages_xml, parser)
 	tree = etree.parse(messages_xml)
 	root = tree.getroot()
 
-	orules = {0:StringIO()}
-	sq_rule_maxnr = 0
-	sq_prop_maxnr = 0
-	sq_prof_maxnr = 0
+	orules = {0:StringIO(), '_max':0}
+	oprops = {0:StringIO(), '_max':0}
 	
 	for e in root.iter("BugPattern"):
 		fb_details =  e.find("Details")
@@ -220,11 +229,8 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 		
 		sq_key = fb_key
 		[sq_rule_nr, sq_prop_nr, sq_prof_nr] = get_order(sq_key)
-		if not sq_rule_nr in orules:
-			orules[sq_rule_nr] = StringIO()
-			if sq_rule_maxnr < sq_rule_nr:
-				sq_rule_maxnr = sq_rule_nr
-		rule =  orules[sq_rule_nr]
+		rule = get_writer(orules, sq_rule_nr)
+		prop = get_writer(oprops, sq_prop_nr)
 		
 		sq_priority = get_priority(sq_key)
 		sq_cat = ''
@@ -248,10 +254,8 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 		if sq_key in deprecated:
 			sq_descr = sq_descr + get_deprecation_text(sq_key)
 		
+		prop.write('rule.findbugs.%s.name=%s\n' % (sq_key, sq_name))
 		if args.html:
-			if not write_file_data(properties_file, 'rule.findbugs.%s.name=%s\n' % (sq_key, sq_name), True):
-				sys.exit('error: could not write "%s"' % properties_file)
-			
 			filename = os.path.join(output_dir, 'html', ('%s.html' % sq_key))
 			if not write_file_data(filename, sq_descr):
 				sys.exit('error: could not write "%s"' % filename) 
@@ -270,20 +274,21 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 			rule.write('    <description><![CDATA[\n\n%s\n\n\t\t]]></description>\n' % sq_descr)
 		rule.write('  </rule>\n\n')
 	
+	props = StringIO();
+	gen_output(props, oprops)
+	
+	if not write_file_data(properties_file, props.getvalue()):
+		sys.exit('error: could not write "%s"' % properties_file) 
+	
 	rules = StringIO();
 	rules.write('<!-- %s -->\n' % prefix)
 	rules.write('<rules>\n\n')
-	for i in range(1, sq_rule_maxnr + 1):
-		if i in orules:
-			rules.write(orules[i].getvalue())
-	rules.write(orules[0].getvalue())
-	#orules = {}
+	gen_output(rules, orules)
 	rules.write('</rules>\n')
 	
 	filename = os.path.join(output_dir, 'rules-%s.xml' % prefix)
 	if not write_file_data(filename, rules.getvalue()):
 		sys.exit('error: could not write "%s"' % filename) 
-	
 
 def main():
 	args = parse_args()
