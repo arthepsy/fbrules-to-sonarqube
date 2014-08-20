@@ -14,10 +14,12 @@ categories = {"BAD_PRACTICE":"Bad practice",
               "PERFORMANCE": "Performance",
               "SECURITY": "Security",
               "STYLE": "Style"}
+default_priorities = {"BLOCKER":1, "CRITICAL":1, "MAJOR":1, "MINOR":1, "INFO":1}
 sq_rule_file = 'sq_rules.dat'
 priorities = {}
 deprecated = {}
 disabled = {}
+
 
 def parse_args():
 	parser = argparse.ArgumentParser(
@@ -63,7 +65,7 @@ def init(args):
 			elif state == 'DISABLED':
 				disabled[rule_key] = True
 			else:
-				sys.exit('error: "%s" is invalid rule state' % state)
+				sys.exit('error: "%s" is invalid rule state.' % state)
 	
 	return [fbplugin_xml, messages_xml]
 
@@ -94,7 +96,12 @@ def get_category(name):
 
 def get_priority(rule_key):
 	if rule_key in priorities:
-		return priorities[rule_key]
+		priority = priorities[rule_key]
+		if priority == '?':
+			priority = 'INFO'
+		if not priority in default_priorities:
+			sys.exit('error: "%s" is invalid rule priority.' % priority)
+		return priority
 	else:
 		return "INFO"
 
