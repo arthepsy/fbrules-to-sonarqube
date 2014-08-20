@@ -1,5 +1,2 @@
 *~
-*.xml
-html/
-*.properties
-
+build/

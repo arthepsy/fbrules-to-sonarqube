@@ -1,4 +1,6 @@
 #!/bin/sh
+_outdir='build'
+
 if [ X"$1" == X"" ]; then
 	echo "usage: $0 <sonar-findbugs-dir>"
 	exit 1
@@ -21,7 +23,7 @@ check_dir ${_dir1}
 check_dir ${_dir2}
 check_dir ${_dir3}
 
-cd $(dirname $0)
+cd $(dirname $0) && mkdir -p ${_outdir} && cd ${_outdir}
 for r in rules-*.xml; do
 	if [ X"$r" == X"rules-findbugs.xml" ]; then
 		cp $r ${_dir1}/rules.xml
@@ -31,11 +33,11 @@ for r in rules-*.xml; do
 done
 
 ./generate_profile.sh
-cp profile-findbugs.xml ${_dir2}/
+cp ./profile-findbugs.xml ${_dir2}/
 
 ./generate_properties.sh
-cp findbugs.properties ${_dir2}/
+cp ./findbugs.properties ${_dir2}/
 
-cp html/*.html ${_dir3}/
+cp ./html/*.html ${_dir3}/
 
 

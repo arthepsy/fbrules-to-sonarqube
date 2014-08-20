@@ -5,6 +5,9 @@ import argparse
 from cStringIO import StringIO
 from lxml import etree
 
+output_dir = 'build'
+sq_rule_file = 'sq_rules.dat'
+
 categories = {"BAD_PRACTICE":"Bad practice",
               "CORRECTNESS":"Correctness",
               "MT_CORRECTNESS": "Multithreaded correctness",
@@ -15,7 +18,6 @@ categories = {"BAD_PRACTICE":"Bad practice",
               "SECURITY": "Security",
               "STYLE": "Style"}
 default_priorities = {"BLOCKER":1, "CRITICAL":1, "MAJOR":1, "MINOR":1, "INFO":1}
-sq_rule_file = 'sq_rules.dat'
 priorities = {}
 deprecated = {}
 disabled = {}
@@ -34,14 +36,24 @@ def parse_args():
 	parser.add_argument('-c', '--comment', metavar='KEY', help='rule key to comment out', action='append')
 	return parser.parse_args()
 
+def getpath(path_file):
+	if (path_file[0] == "/"):
+		return path_file
+	else:
+		cdir = os.path.dirname(os.path.realpath(__file__))
+		return os.path.join(cdir, path_file)
+
 def init(args):
-	fbplugin_xml = args.fbrules_dir + '/findbugs.xml'
+	fbplugin_xml = os.path.join(args.fbrules_dir, 'findbugs.xml')
 	if not os.path.exists(fbplugin_xml):
 		sys.exit('error: "%s" does not exist' % fbplugin_xml)
 	
-	messages_xml = args.fbrules_dir + '/messages.xml'
+	messages_xml = os.path.join(args.fbrules_dir, 'messages.xml')
 	if not os.path.exists(messages_xml):
 		sys.exit('error: "%s" does not exist' % messages_xml)
+	
+	if not create_output_dir():
+		sys.exit('error: could not create directory for output')
 	
 	if args.html:
 		if not create_html_dir():
@@ -69,9 +81,17 @@ def init(args):
 	
 	return [fbplugin_xml, messages_xml]
 
+def create_output_dir():
+	try:
+		os.makedirs(output_dir)
+	except OSError as exception:
+		if exception.errno != errno.EEXIST:
+			return False
+	return True
+
 def create_html_dir():
 	try:
-		os.makedirs('html')
+		os.makedirs(os.path.join(output_dir, 'html'))
 	except OSError as exception:
 		if exception.errno != errno.EEXIST:
 			return False
@@ -153,7 +173,7 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 	for e in root.iter("BugPattern"):
 		rule_type_to_category[e.get('type')] = e.get('category')
 
-	properties_file = 'findbugs-%s.properties' % prefix
+	properties_file = os.path.join(output_dir, 'findbugs-%s.properties' % prefix)
 	if args.html:
 		if not write_file_data(properties_file, None):
 			sys.exit('error: could not write "%s"' % properties_file)
@@ -202,7 +222,7 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 			if not write_file_data(properties_file, 'rule.findbugs.%s.name=%s\n' % (sq_key, sq_name), True):
 				sys.exit('error: could not write "%s"' % properties_file)
 			
-			filename = 'html/%s.html' % sq_key
+			filename = os.path.join(output_dir, 'html', ('%s.html' % sq_key))
 			if not write_file_data(filename, sq_descr):
 				sys.exit('error: could not write "%s"' % filename) 
 		
@@ -220,7 +240,7 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 		
 	rules.write('</rules>\n')
 	
-	filename = 'rules-%s.xml' % prefix
+	filename = os.path.join(output_dir, 'rules-%s.xml' % prefix)
 	if not write_file_data(filename, rules.getvalue()):
 		sys.exit('error: could not write "%s"' % filename) 
 	
@@ -231,4 +251,5 @@ def main():
 	sys.exit(0)
 
 if __name__ == '__main__':
+	output_dir = getpath(output_dir)
 	main()

@@ -1,5 +1,5 @@
 #!/bin/sh
+_outdir='build'
 cd $(dirname $0)
-rm *.xml *.properties
-rm -rf ./html/
+rm -rf ${_outdir}
 
