@@ -195,6 +195,34 @@ def get_deprecation_text(rule_key):
 			text = '\n\n<p>\nThis rule is deprecated, use %s instead.\n</p>\n' % text
 	return text
 
+def get_description(rule_key, details_node):
+	descr_raw = details_node.text.lstrip('\r\n').rstrip('\r\n')
+	if len(descr_raw.strip()) == 0:
+		subxml = etree.fromstring(etree.tostring(details_node))
+		etree.cleanup_namespaces(subxml)
+		descr_raw = ''.join([etree.tostring(e, pretty_print=False) for e in subxml])
+		if len(descr_raw.strip()) == 0:
+			descr_xml = descr_raw
+			descr_html = rule_key
+		else:
+			descr_xml = descr_raw
+			descr_html = re.sub(r'\n            ', '\n', ''.join([etree.tostring(e, pretty_print=False) for e in subxml]))
+	else:
+		descr_xml = descr_raw
+		descr_xml = re.sub(r'[\t ]+\n', '\n', descr_xml)
+		descr_xml = descr_xml.lstrip('\r\n').rstrip()
+		
+		descr_html = re.sub(r'\t\t\t', '', descr_raw)
+		descr_html = re.sub(r'\t', '  ', descr_html)
+		
+	if rule_key in deprecated_rules:
+		reason = get_deprecation_text(rule_key)
+		descr_xml = descr_xml + reason
+		descr_html = descr_html + reason
+	
+	return [descr_xml, descr_html]
+
+
 def get_writer(ordered, nr):
 	if not nr in ordered:
 		ordered[nr] = StringIO()
@@ -240,9 +268,7 @@ def parse_rules(args, messages_xml, prefix):
 		fb_details =  e.find("Details")
 		fb_shortdescr =  e.find("ShortDescription")
 		fb_key = e.get("type")
-		
-		if fb_key in exclude_keys:
-			continue
+		if fb_key in exclude_keys: continue
 		
 		sq_key = fb_key
 		[sq_rule_nr, sq_prop_nr, sq_prof_nr] = get_order(sq_key)
@@ -252,26 +278,14 @@ def parse_rules(args, messages_xml, prefix):
 		
 		sq_priority = get_priority(sq_key)
 		sq_cat = get_category_name(sq_key)
-		
 		sq_name = sq_cat + " - " + fb_shortdescr.text.strip()
 		sq_config_key = sq_key
-		sq_descr = re.sub(r'\t\t\t', '', fb_details.text.lstrip().rstrip())
-		sq_descr = re.sub(r'\t', '  ', sq_descr)
-		
-		if len(sq_descr.strip()) == 0:
-			subxml = etree.fromstring(etree.tostring(fb_details))
-			etree.cleanup_namespaces(subxml)
-			sq_descr = re.sub(r'\n            ', '\n', ''.join([etree.tostring(e, pretty_print=False) for e in subxml]))
-			if len(sq_descr.strip()) == 0:
-				sq_descr = sq_name
-		
-		if sq_key in deprecated_rules:
-			sq_descr = sq_descr + get_deprecation_text(sq_key)
+		[sq_descr_xml, sq_descr_html] = get_description(sq_key, fb_details)
 		
 		prop.write('rule.findbugs.%s.name=%s\n' % (sq_key, sq_name))
 		if args.html:
 			filename = os.path.join(output_dir, 'html', prefix, ('%s.html' % sq_key))
-			if not write_file_data(filename, sq_descr):
+			if not write_file_data(filename, sq_descr_html):
 				sys.exit('error: could not write "%s"' % filename) 
 		
 		if not sq_key in disabled_rules:
@@ -289,7 +303,7 @@ def parse_rules(args, messages_xml, prefix):
 		if sq_key in deprecated_rules:
 			rule.write('    <status>DEPRECATED</status>\n')
 		if not findbugs_core:
-			rule.write('    <description><![CDATA[\n\n%s\n\n\t\t]]></description>\n' % sq_descr)
+			rule.write('    <description><![CDATA[\n\n%s\n\n\t\t]]></description>\n' % sq_descr_xml)
 		rule.write('  </rule>\n\n')
 	
 	props = StringIO();
