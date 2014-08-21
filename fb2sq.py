@@ -212,7 +212,7 @@ def get_description(rule_key, details_node):
 		descr_xml = re.sub(r'[\t ]+\n', '\n', descr_xml)
 		descr_xml = descr_xml.lstrip('\r\n').rstrip()
 		
-		descr_html = re.sub(r'\t\t\t', '', descr_raw)
+		descr_html = re.sub(r'\t\t\t', '', descr_xml)
 		descr_html = re.sub(r'\t', '  ', descr_html)
 		
 	if rule_key in deprecated_rules:
