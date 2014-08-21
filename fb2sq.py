@@ -16,7 +16,7 @@ category_names = {"BAD_PRACTICE":"Bad practice",
                   "MALICIOUS_CODE": "Malicious code vulnerability",
                   "PERFORMANCE": "Performance",
                   "SECURITY": "Security",
-                  "STYLE": "Dodgy"}
+                  "STYLE": "Style"}
 valid_priorities = {"BLOCKER":1, "CRITICAL":1, "MAJOR":1, "MINOR":1, "INFO":1}
 
 rule_categories = {}
@@ -265,6 +265,7 @@ def parse_rules(args, messages_xml, prefix):
 	comment_keys = parse_keys(args.comment)
 	
 	findbugs_core = (prefix == 'findbugs')
+	# if findbugs_core: category_names['STYLE'] = 'Dodgy'
 	
 	properties_file = os.path.join(output_dir, 'findbugs-%s.properties' % prefix)
 	profile_file = os.path.join(output_dir, 'profile-%s.xml' % prefix)
