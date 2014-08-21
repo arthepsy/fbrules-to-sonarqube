@@ -28,6 +28,6 @@ if [ -d "${_odir}" ]; then
 	cp ${_odir}/rules*.xml ${_dir1}/
 	cp ${_odir}/profile-*.xml ${_dir1}/
 	cp ${_odir}/*.properties ${_dir2}/
-	cp ${_odir}/html/*.html ${_dir3}/
+	cp ${_odir}/html/findbugs/*.html ${_dir3}/
 fi
 

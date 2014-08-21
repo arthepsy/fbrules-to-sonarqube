@@ -8,20 +8,23 @@ from lxml import etree
 output_dir = 'build'
 sq_rule_file = 'sq_rules.dat'
 
-categories = {"BAD_PRACTICE":"Bad practice",
-              "CORRECTNESS":"Correctness",
-              "MT_CORRECTNESS": "Multithreaded correctness",
-              "I18N": "Internationalization",
-              "EXPERIMENTAL": "Experimental",
-              "MALICIOUS_CODE": "Malicious code vulnerability",
-              "PERFORMANCE": "Performance",
-              "SECURITY": "Security",
-              "STYLE": "Dodgy"}
-default_priorities = {"BLOCKER":1, "CRITICAL":1, "MAJOR":1, "MINOR":1, "INFO":1}
-priorities = {}
-deprecated = {}
-disabled = {}
-order = {}
+category_names = {"BAD_PRACTICE":"Bad practice",
+                  "CORRECTNESS":"Correctness",
+                  "MT_CORRECTNESS": "Multithreaded correctness",
+                  "I18N": "Internationalization",
+                  "EXPERIMENTAL": "Experimental",
+                  "MALICIOUS_CODE": "Malicious code vulnerability",
+                  "PERFORMANCE": "Performance",
+                  "SECURITY": "Security",
+                  "STYLE": "Dodgy"}
+valid_priorities = {"BLOCKER":1, "CRITICAL":1, "MAJOR":1, "MINOR":1, "INFO":1}
+
+rule_categories = {}
+rule_priorities = {}
+
+deprecated_rules = {}
+disabled_rules = {}
+rule_order = {}
 
 
 def parse_args():
@@ -62,9 +65,15 @@ def init(args):
 	if not create_output_dir():
 		sys.exit('error: could not create directory for output')
 	
+	tree = etree.parse(fbplugin_xml)
+	root = tree.getroot()
+	prefix = get_prefix(root, args.component_name)
+	
 	if args.html:
-		if not create_html_dir():
+		if not create_html_dir(prefix):
 			sys.exit('error: could not create directory for html files')
+	
+	rule_categories = get_rule_categories(root)
 	
 	if os.path.exists(sq_rule_file):
 		#prog = re.compile(r'^([^:]*):(.*)$')
@@ -79,23 +88,23 @@ def init(args):
 			sq_rule_nr = getint(props[1])
 			sq_prop_nr = getint(props[2])
 			sq_prof_nr = getint(props[3])
-			order[rule_key] = [sq_rule_nr, sq_prop_nr, sq_prof_nr]
+			rule_order[rule_key] = [sq_rule_nr, sq_prop_nr, sq_prof_nr]
 			
 			priority = props[4].strip()
 			if (len(priority) > 0):
-				priorities[rule_key] = priority
+				rule_priorities[rule_key] = priority
 			if (len(props) < 6): continue
 			state = props[5].strip()
 			if (state):
 				if state == 'DEPRECATED':
 					reason = props[6].strip() if len(props) > 6 else ''
-					deprecated[rule_key] = reason
+					deprecated_rules[rule_key] = reason
 				elif state == 'DISABLED':
-					disabled[rule_key] = True
+					disabled_rules[rule_key] = True
 				else:
 					sys.exit('error: "%s" is invalid rule state.' % state)
 	
-	return [fbplugin_xml, messages_xml]
+	return [messages_xml, prefix]
 
 def create_output_dir():
 	try:
@@ -105,9 +114,9 @@ def create_output_dir():
 			return False
 	return True
 
-def create_html_dir():
+def create_html_dir(prefix):
 	try:
-		os.makedirs(os.path.join(output_dir, 'html'))
+		os.makedirs(os.path.join(output_dir, 'html', prefix))
 	except OSError as exception:
 		if exception.errno != errno.EEXIST:
 			return False
@@ -124,33 +133,57 @@ def write_file_data(filename, contents, append = False):
 		if fh: fh.close()
 	return True
 
-def get_category(name):
-	if name in categories:
-		return categories[name]
+def get_prefix(root, defined_prefix):
+	prefix = defined_prefix
+	if not prefix:
+		pluginid = root.get('pluginid')
+		dot = pluginid.rindex('.')
+		if dot > 0:
+			prefix = pluginid[dot+1:]
+		else:
+			prefix = pluginid
+	if prefix == 'core':
+		prefix = 'findbugs'
+	return prefix
+
+def get_rule_categories(root):
+	categories = {}
+	for e in root.iter("BugPattern"):
+		categories[e.get('type')] = e.get('category')
+	return categories
+
+def get_category_name(rule_key):
+	category = ''
+	if rule_key in rule_categories:
+		category = rule_categories[rule_key].strip()
+	if len(category) == 0:
+		category = 'MISCELLANEOUS'
+	if category in category_names:
+		return category_names[name]
 	else:
-		return name[0] + name[1:].lower()
+		return category[0] + category[1:].lower()
 
 def get_priority(rule_key):
-	if rule_key in priorities:
-		priority = priorities[rule_key]
+	if rule_key in rule_priorities:
+		priority = rule_priorities[rule_key]
 		if priority == '?':
 			priority = 'INFO'
-		if not priority in default_priorities:
+		if not priority in valid_priorities:
 			sys.exit('error: "%s" is invalid rule priority.' % priority)
 		return priority
 	else:
 		return "INFO"
 
 def get_order(rule_key):
-	if rule_key in order:
-		return order[rule_key]
+	if rule_key in rule_order:
+		return rule_order[rule_key]
 	else:
 		return [0, 0, 0]
 
 def get_deprecation_text(rule_key):
 	text = ''
-	if rule_key in deprecated:
-		reason = deprecated[rule_key]
+	if rule_key in deprecated_rules:
+		reason = deprecated_rules[rule_key]
 		#reason = ',,,'
 		text = '},{rule:squid:'.join(filter(None, reason.split(',')))
 		text = '{rule:squid:' + text + '}'
@@ -174,7 +207,6 @@ def gen_output(output, ordered):
 		if i in ordered:
 			output.write(ordered[i].getvalue())
 	output.write(ordered[0].getvalue())
-	#ordered = {}
 
 def parse_keys(value):
 	parsed_keys = {}
@@ -185,29 +217,12 @@ def parse_keys(value):
 				parsed_keys[key] = True
 	return parsed_keys
 
-def parse_rules(args, fbplugin_xml, messages_xml):
+def parse_rules(args, messages_xml, prefix):
 	
 	exclude_keys = parse_keys(args.exclude)
 	comment_keys = parse_keys(args.comment)
 	
-	tree = etree.parse(fbplugin_xml)
-	root = tree.getroot()
-	
-	prefix = args.component_name
-	if not prefix:
-		pluginid = root.get('pluginid')
-		dot = pluginid.rindex('.')
-		if dot > 0:
-			prefix = pluginid[dot+1:]
-		else:
-			prefix = pluginid
-	if prefix == 'core':
-		prefix = 'findbugs'
 	findbugs_core = (prefix == 'findbugs')
-	
-	rule_type_to_category = {}
-	for e in root.iter("BugPattern"):
-		rule_type_to_category[e.get('type')] = e.get('category')
 	
 	properties_file = os.path.join(output_dir, 'findbugs-%s.properties' % prefix)
 	profile_file = os.path.join(output_dir, 'profile-%s.xml' % prefix)
@@ -236,12 +251,8 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 		prof = get_writer(oprofs, sq_prof_nr)
 		
 		sq_priority = get_priority(sq_key)
-		sq_cat = ''
-		if sq_key in rule_type_to_category:
-			sq_cat = rule_type_to_category[sq_key].strip()
-		if len(sq_cat) == 0:
-			sq_cat = 'MISCELLANEOUS'
-		sq_cat = get_category(sq_cat)
+		sq_cat = get_category_name(sq_key)
+		
 		sq_name = sq_cat + " - " + fb_shortdescr.text.strip()
 		sq_config_key = sq_key
 		sq_descr = re.sub(r'\t\t\t', '', fb_details.text.lstrip().rstrip())
@@ -254,16 +265,16 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 			if len(sq_descr.strip()) == 0:
 				sq_descr = sq_name
 		
-		if sq_key in deprecated:
+		if sq_key in deprecated_rules:
 			sq_descr = sq_descr + get_deprecation_text(sq_key)
 		
 		prop.write('rule.findbugs.%s.name=%s\n' % (sq_key, sq_name))
 		if args.html:
-			filename = os.path.join(output_dir, 'html', ('%s.html' % sq_key))
+			filename = os.path.join(output_dir, 'html', prefix, ('%s.html' % sq_key))
 			if not write_file_data(filename, sq_descr):
 				sys.exit('error: could not write "%s"' % filename) 
 		
-		if not sq_key in disabled:
+		if not sq_key in disabled_rules:
 			prof.write('  <Match>\n')
 			prof.write('    <Bug pattern="%s"/>\n' % sq_key)
 			prof.write('  </Match>\n')
@@ -273,10 +284,9 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 			rule.write('    <priority>%s</priority>\n' % sq_priority)
 		else:
 			rule.write('  <rule key="%s" priority="%s">\n' % (sq_key, sq_priority))
-			#sq_name = sq_name  + ' [' + prefix + ']'
 		rule.write('    <name><![CDATA[%s]]></name>\n' % sq_name)
 		rule.write('    <configKey><![CDATA[%s]]></configKey>\n' % sq_config_key)
-		if sq_key in deprecated:
+		if sq_key in deprecated_rules:
 			rule.write('    <status>DEPRECATED</status>\n')
 		if not findbugs_core:
 			rule.write('    <description><![CDATA[\n\n%s\n\n\t\t]]></description>\n' % sq_descr)
