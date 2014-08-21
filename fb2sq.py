@@ -13,10 +13,10 @@ categories = {"BAD_PRACTICE":"Bad practice",
               "MT_CORRECTNESS": "Multithreaded correctness",
               "I18N": "Internationalization",
               "EXPERIMENTAL": "Experimental",
-              "MALICIOUS_CODE": "Malicious code",
+              "MALICIOUS_CODE": "Malicious code vulnerability",
               "PERFORMANCE": "Performance",
               "SECURITY": "Security",
-              "STYLE": "Style"}
+              "STYLE": "Dodgy"}
 default_priorities = {"BLOCKER":1, "CRITICAL":1, "MAJOR":1, "MINOR":1, "INFO":1}
 priorities = {}
 deprecated = {}
@@ -300,7 +300,7 @@ def parse_rules(args, fbplugin_xml, messages_xml):
 	rules.write('<rules>\n')
 	rules.write('\n' if findbugs_core else '  <!-- %s -->\n' % prefix)
 	gen_output(rules, orules)
-	rules.write('</rules>\n')
+	rules.write('</rules>')
 	filename = 'rules.xml' if findbugs_core else 'rules-%s.xml' % prefix 
 	filename = os.path.join(output_dir, filename)
 	if not write_file_data(filename, rules.getvalue()):
