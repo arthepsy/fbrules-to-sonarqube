@@ -4,5 +4,5 @@ if [ X"$1" == X"" ]; then
 	exit 1
 fi	
 
-$(dirname $0)/fb2sq.py --html $1/plugin/src/main/resources/metadata 
+$(dirname $0)/fb2sq.py --html --tidy $1/plugin/src/main/resources/metadata 
 

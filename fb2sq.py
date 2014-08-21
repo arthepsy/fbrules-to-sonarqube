@@ -36,6 +36,7 @@ def parse_args():
 	parser.add_argument('fbrules_dir', metavar='fbrules-directory', help='directory which contains findbugs.xml and messages.xml')
 	parser.add_argument('component_name', metavar='component-name', nargs='?', help='component name (core, fb-contrib, find-sec-bugs, ...)')
 	parser.add_argument('--html', help='export HTML files and relevant properties file', action='store_true')
+	parser.add_argument('--tidy', help='tidy HTML files', action='store_true')
 	parser.add_argument('-e', '--exclude', metavar='KEY', help='rule key to completely exclude', action='append')
 	parser.add_argument('-c', '--comment', metavar='KEY', help='rule key to comment out', action='append')
 	return parser.parse_args()
@@ -195,7 +196,26 @@ def get_deprecation_text(rule_key):
 			text = '\n\n<p>\nThis rule is deprecated, use %s instead.\n</p>\n' % text
 	return text
 
-def get_description(rule_key, details_node):
+def fix_html_descr(html, use_tidy):
+	if use_tidy:
+		from tidylib import tidy_fragment
+		fragment, errors = tidy_fragment(html)
+		return fragment
+	
+	#html = re.sub(r'    ','\t', html) # tabify
+	html = re.sub(r'^[ ]+<p>', '<p>', html)
+	lines = html.split('\n')
+	tabs = -1
+	for line in lines:
+		m = re.search('[^\t]', line)
+		if m and (tabs == -1 or m.start() < tabs):
+			tabs = m.start()
+	if tabs > 0:
+		 html = re.sub(r'\t' * tabs, '', html)
+	#html = re.sub(r'<p>([^\n]*)\n[\t ]*</p>', '<p>###\\1</p>', html)
+	return html
+
+def get_description(rule_key, details_node, use_tidy):
 	descr_raw = details_node.text.lstrip('\r\n').rstrip('\r\n')
 	if len(descr_raw.strip()) == 0:
 		subxml = etree.fromstring(etree.tostring(details_node))
@@ -212,8 +232,7 @@ def get_description(rule_key, details_node):
 		descr_xml = re.sub(r'[\t ]+\n', '\n', descr_xml)
 		descr_xml = descr_xml.lstrip('\r\n').rstrip()
 		
-		descr_html = re.sub(r'\t\t\t', '', descr_xml)
-		descr_html = re.sub(r'\t', '  ', descr_html)
+		descr_html = fix_html_descr(descr_xml, use_tidy)
 		
 	if rule_key in deprecated_rules:
 		reason = get_deprecation_text(rule_key)
@@ -280,7 +299,7 @@ def parse_rules(args, messages_xml, prefix):
 		sq_cat = get_category_name(sq_key)
 		sq_name = sq_cat + " - " + fb_shortdescr.text.strip()
 		sq_config_key = sq_key
-		[sq_descr_xml, sq_descr_html] = get_description(sq_key, fb_details)
+		[sq_descr_xml, sq_descr_html] = get_description(sq_key, fb_details, args.tidy)
 		
 		prop.write('rule.findbugs.%s.name=%s\n' % (sq_key, sq_name))
 		if args.html:
