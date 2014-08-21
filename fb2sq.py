@@ -74,7 +74,8 @@ def init(args):
 		if not create_html_dir(prefix):
 			sys.exit('error: could not create directory for html files')
 	
-	rule_categories = get_rule_categories(root)
+	for e in root.iter("BugPattern"):
+		rule_categories[e.get('type')] = e.get('category')
 	
 	if os.path.exists(sq_rule_file):
 		#prog = re.compile(r'^([^:]*):(.*)$')
@@ -147,12 +148,6 @@ def get_prefix(root, defined_prefix):
 		prefix = 'findbugs'
 	return prefix
 
-def get_rule_categories(root):
-	categories = {}
-	for e in root.iter("BugPattern"):
-		categories[e.get('type')] = e.get('category')
-	return categories
-
 def get_category_name(rule_key):
 	category = ''
 	if rule_key in rule_categories:
@@ -160,7 +155,7 @@ def get_category_name(rule_key):
 	if len(category) == 0:
 		category = 'MISCELLANEOUS'
 	if category in category_names:
-		return category_names[name]
+		return category_names[category]
 	else:
 		return category[0] + category[1:].lower()
 
