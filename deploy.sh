@@ -24,22 +24,10 @@ check_dir ${_dir1}
 check_dir ${_dir2}
 check_dir ${_dir3}
 
-_cdir=$(cd $(dirname $0) && pwd)
-cd ${_cdir} && mkdir -p ${_odir} && cd ${_odir}
-for r in rules-*.xml; do
-	if [ X"$r" == X"rules-findbugs.xml" ]; then
-		cp $r ${_dir1}/rules.xml
-	else
-		cp $r ${_dir1}/$r
-	fi
-done
-
-${_cdir}/generate_profile.sh
-cp ${_odir}/profile-findbugs.xml ${_dir1}/
-
-${_cdir}/generate_properties.sh
-cp ${_odir}/findbugs.properties ${_dir2}/
-
-cp ${_odir}/html/*.html ${_dir3}/
-
+if [ -d "${_odir}" ]; then
+	cp ${_odir}/rules*.xml ${_dir1}/
+	cp ${_odir}/profile-*.xml ${_dir1}/
+	cp ${_odir}/*.properties ${_dir2}/
+	cp ${_odir}/html/*.html ${_dir3}/
+fi
 
