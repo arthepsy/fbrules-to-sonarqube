@@ -267,7 +267,8 @@ def parse_rules(args, messages_xml, prefix):
 	findbugs_core = (prefix == 'findbugs')
 	# if findbugs_core: category_names['STYLE'] = 'Dodgy'
 	
-	properties_file = os.path.join(output_dir, 'findbugs-%s.properties' % prefix)
+	filename = 'findbugs.properties' if findbugs_core else 'findbugs-%s.properties' % prefix 
+	properties_file = os.path.join(output_dir, filename)
 	profile_file = os.path.join(output_dir, 'profile-%s.xml' % prefix)
 	
 	#parser = etree.XMLParser(ns_clean=True, strip_cdata=False, compact=False, remove_blank_text=True)
