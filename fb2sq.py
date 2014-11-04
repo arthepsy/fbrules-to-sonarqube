@@ -21,6 +21,7 @@ valid_priorities = {"BLOCKER":1, "CRITICAL":1, "MAJOR":1, "MINOR":1, "INFO":1}
 
 rule_categories = {}
 rule_priorities = {}
+rule_tags = {}
 
 deprecated_rules = {}
 disabled_rules = {}
@@ -105,6 +106,10 @@ def init(args):
 					disabled_rules[rule_key] = True
 				else:
 					sys.exit('error: "%s" is invalid rule state.' % state)
+			if (len(props) < 8): continue
+			tags = props[7].strip()
+			if len(tags) > 0:
+				rule_tags[rule_key] = tags
 	
 	return [messages_xml, prefix]
 
@@ -316,6 +321,9 @@ def parse_rules(args, messages_xml, prefix):
 			rule.write('  <rule key="%s" priority="%s">\n' % (sq_key, sq_priority))
 		rule.write('    <name><![CDATA[%s]]></name>\n' % sq_name)
 		rule.write('    <configKey><![CDATA[%s]]></configKey>\n' % sq_config_key)
+		if sq_key in rule_tags:
+			for rule_tag in rule_tags[sq_key].split(','):
+				rule.write('    <tag>%s</tag>\n' % rule_tag)
 		if sq_key in deprecated_rules:
 			rule.write('    <status>DEPRECATED</status>\n')
 		if not findbugs_core:
