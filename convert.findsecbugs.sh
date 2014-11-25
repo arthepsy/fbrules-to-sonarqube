@@ -1,5 +1,5 @@
 #!/bin/sh
-if [ X"$1" == X"" ]; then
+if [ X"$1" = X"" ]; then
 	echo "usage: $0 <findsecbugs-dir>"
 	exit 1
 fi	

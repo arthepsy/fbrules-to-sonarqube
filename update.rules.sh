@@ -2,7 +2,7 @@
 _outdir='build'
 _sqrules='sq_rules.dat'
 
-if [ X"$1" == X"" ]; then
+if [ X"$1" = X"" ]; then
 	echo "usage: $0 <findbugs-dir>"
 	exit 1
 fi	
@@ -45,10 +45,10 @@ grep -v "^#" ${_sqdat} | cut -d ':' -f 1 | sort > ${_tmpdir}/sq.rules
 for diff in $(diff -ruN ${_tmpdir}/sq.rules ${_tmpdir}/fb.rules | tail -n +3 | grep "^[\+-]"); do
 	_r_act=$(echo $diff | cut -c -1)
 	_r_key=$(echo $diff | cut -c 2-)
-	if [ X"$_r_act" == X"-" ]; then
+	if [ X"$_r_act" = X"-" ]; then
 		echo "[ ] removing rule ${_r_key}"
 		grep -v "^${_r_key}:" ${_sqnew} > tmp.$$ && mv tmp.$$ ${_sqnew}
-	elif [ X"$_r_act" == X"+" ]; then
+	elif [ X"$_r_act" = X"+" ]; then
 		echo "[ ] adding rule ${_r_key}"
 		echo "${_r_key}:0:0:0:?::" >> ${_sqnew}
 	fi

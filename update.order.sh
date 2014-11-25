@@ -2,7 +2,7 @@
 _outdir='build'
 _sqrules='sq_rules.dat'
 
-if [ X"$1" == X"" ]; then
+if [ X"$1" = X"" ]; then
 	echo "usage: $0 <sonar-findbugs-dir>"
 	exit 1
 fi	
