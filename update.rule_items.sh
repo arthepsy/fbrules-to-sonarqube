@@ -1,13 +1,14 @@
 #!/bin/sh
-_appname='fb2sq'
+_appname='fb2sq.data'
 _sqrules='sq_rules.dat'
+
+if [ X"$1" = X"" ]; then
+	echo "usage: $0 <findbugs-dir>"
+	exit 1
+fi
 
 _cdir=$(cd -- "$(dirname "$0")" && pwd)
 . ${_cdir}/ar.utils.sh
-
-if [ X"$1" = X"" ]; then
-	_err "usage: $0 <findbugs-dir>"
-fi
 
 _chkdir "$1"
 _sdir=$(_getfile "$1/findbugs/etc")
