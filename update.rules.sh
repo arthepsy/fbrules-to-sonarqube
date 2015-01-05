@@ -1,58 +1,46 @@
 #!/bin/sh
-_outdir='build'
+_appname='fb2sq'
 _sqrules='sq_rules.dat'
 
+_cdir=$(cd -- "$(dirname "$0")" && pwd)
+. ${_cdir}/ar.utils.sh
+
 if [ X"$1" = X"" ]; then
-	echo "usage: $0 <findbugs-dir>"
-	exit 1
-fi	
-
-check_dir() {
-	if [ ! -d $1 ]; then
-		echo "error: incorrect directory: \"$1\""
-		exit 1
-	fi
-}
-check_file() {
-	if [ ! -f $1 ]; then
-		echo "error: file not found: \"$1\""
-		exit 1
-	fi
-}
-
-check_dir $1
-_cdir=$(cd $(dirname $0) && pwd)
-_sdir="$(cd $1 && pwd)/findbugs/etc"
-_odir="$(cd ${_outdir} && pwd)"
-_fbmsg=${_sdir}/messages.xml
-_sqdat=${_cdir}/sq_rules.dat
-
-check_dir ${_sdir}
-check_dir ${_odir}
-check_file ${_fbmsg}
-check_file ${_sqdat}
-
-_tmpdir=$(mktemp -d)
-if [ $? -ne 0 ]; then
-	echo "error: could not create temporary directory"
-	exit 1
+	_err "usage: $0 <findbugs-dir>"
 fi
-_sqnew=${_tmpdir}/sq_rules.dat
 
-cp ${_sqdat} "${_sqnew}"
-grep "<BugPattern type=" ${_fbmsg} | cut -d '"' -f 2 | sort > ${_tmpdir}/fb.rules
-grep -v "^#" ${_sqdat} | cut -d ':' -f 1 | sort > ${_tmpdir}/sq.rules
-for diff in $(diff -ruN ${_tmpdir}/sq.rules ${_tmpdir}/fb.rules | tail -n +3 | grep "^[\+-]"); do
+_chkdir "$1"
+_sdir=$(_getfile "$1/findbugs/etc")
+_fbmsg="${_sdir}/messages.xml"
+_sqdat="${_cdir}/sq_rules.dat"
+
+_chkdir "${_sdir}"
+_chkfile "${_fbmsg}" "${_sqdat}"
+
+_tmpdir=$(_gettmpdir)
+_clean() {
+	rm -rf "${_tmpdir}"
+}
+_trap '_clean' 0
+
+_sqnew="${_tmpdir}/sq_rules.dat"
+_tmpfbr="${_tmpdir}/fb.rules"
+_tmpsqr="${_tmpdir}/sq.rules"
+_tmptmp="${_tmpdir}/tmp.$$"
+
+export LC_ALL=C
+cp "${_sqdat}" "${_sqnew}"
+grep "<BugPattern type=" "${_fbmsg}" | cut -d '"' -f 2 | sort > "${_tmpfbr}"
+grep -v "^#" "${_sqdat}" | cut -d ':' -f 1 | sort > "${_tmpsqr}"
+for diff in $(diff -ruN "${_tmpsqr}" "${_tmpfbr}" | tail -n +3 | grep "^[\+-]"); do
 	_r_act=$(echo $diff | cut -c -1)
 	_r_key=$(echo $diff | cut -c 2-)
-	if [ X"$_r_act" = X"-" ]; then
-		echo "[ ] removing rule ${_r_key}"
-		grep -v "^${_r_key}:" ${_sqnew} > tmp.$$ && mv tmp.$$ ${_sqnew}
+	if [ X"${_r_act}" = X"-" ]; then
+		_out "removing rule ${_r_key}"
+		grep -v "^${_r_key}:" "${_sqnew}" > "${_tmptmp}" && mv "${_tmptmp}" "${_sqnew}"
 	elif [ X"$_r_act" = X"+" ]; then
-		echo "[ ] adding rule ${_r_key}"
-		echo "${_r_key}:0:0:0:?::" >> ${_sqnew}
+		_out "adding rule ${_r_key}"
+		echo "${_r_key}:0:0:0:?::" >> "${_sqnew}"
 	fi
 done
-sort ${_sqnew} > ${_sqdat}
-
-rm -rf ${_tmpdir}
+sort "${_sqnew}" > "${_sqdat}"
