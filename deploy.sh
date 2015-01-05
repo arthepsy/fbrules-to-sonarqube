@@ -1,33 +1,27 @@
 #!/bin/sh
+_appname='fb2sq.deploy'
 _outdir='build'
 
 if [ X"$1" = X"" ]; then
 	echo "usage: $0 <sonar-findbugs-dir>"
 	exit 1
-fi	
+fi
 
-check_dir() {
-	if [ ! -d $1 ]; then
-		echo "error: incorrect direcotry \"$1\""
-		exit 1
-	fi
-}
+_cdir=$(cd -- "$(dirname "$0")" && pwd)
+. "${_cdir}/ar.utils.sh"
 
-check_dir $1
-_ddir=$(cd $1 && pwd)
-_odir=$(cd ${_outdir} && pwd)
-_dir1="${_ddir}/src/main/resources/org/sonar/plugins/findbugs"
-_dir2="${_ddir}/src/main/resources/org/sonar/l10n"
+_chkdir "$1"
+_sqfbdir=$(_getdir "$1/decoy")
+_odir=$(_getdir "${_outdir}/decoy")
+_dir1="${_sqfbdir}/src/main/resources/org/sonar/plugins/findbugs"
+_dir2="${_sqfbdir}/src/main/resources/org/sonar/l10n"
 _dir3="${_dir2}/findbugs/rules/findbugs"
 
-check_dir ${_dir1}
-check_dir ${_dir2}
-check_dir ${_dir3}
-
+_chkdir "${_dir1}" "${_dir2}" "${_dir3}"
 if [ -d "${_odir}" ]; then
-	cp ${_odir}/rules*.xml ${_dir1}/
-	cp ${_odir}/profile-*.xml ${_dir1}/
-	cp ${_odir}/*.properties ${_dir2}/
-	cp ${_odir}/html/findbugs/*.html ${_dir3}/
+	find "${_odir}" -name "rules*.xml" -exec cp "{}" "${_dir1}/" \;
+	find "${_odir}" -name "profile-*.xml" -exec cp "{}" "${_dir1}/" \;
+	find "${_odir}" -name "*.properties" -exec cp "{}" "${_dir2}/" \;
+	find "${_odir}/html/findbugs/" -name "*.html" -exec cp "{}" "${_dir3}/" \;
 fi
 

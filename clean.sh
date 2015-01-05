@@ -1,5 +1,6 @@
 #!/bin/sh
 _outdir='build'
-cd $(dirname $0)
-rm -rf ${_outdir}
+_cdir=$(cd -- "$(dirname "$0")" && pwd)
+cd -- "${_cdir}"
+rm -rf "${_outdir}"
 
