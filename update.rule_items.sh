@@ -8,7 +8,7 @@ if [ X"$1" = X"" ]; then
 fi
 
 _cdir=$(cd -- "$(dirname "$0")" && pwd)
-. ${_cdir}/ar.utils.sh
+. "${_cdir}/ar.utils.sh"
 
 _chkdir "$1"
 _sdir=$(_getfile "$1/findbugs/etc")
