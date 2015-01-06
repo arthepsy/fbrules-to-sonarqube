@@ -20,8 +20,8 @@ _dir3="${_dir2}/findbugs/rules/findbugs"
 _chkdir "${_dir1}" "${_dir2}" "${_dir3}"
 if [ -d "${_odir}" ]; then
 	find "${_odir}" -name "rules*.xml" -exec cp "{}" "${_dir1}/" \;
-	find "${_odir}" -name "profile-*.xml" -exec cp "{}" "${_dir1}/" \;
-	find "${_odir}" -name "*.properties" -exec cp "{}" "${_dir2}/" \;
+	find "${_odir}" -name "profile-findbugs.xml" -exec cp "{}" "${_dir1}/" \;
+	find "${_odir}" -name "findbugs.properties" -exec cp "{}" "${_dir2}/" \;
 	find "${_odir}/html/findbugs/" -name "*.html" -exec cp "{}" "${_dir3}/" \;
 fi
 
