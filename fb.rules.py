@@ -50,11 +50,14 @@ def _priority_sortlevel(priority):
 	return SonarQube.RulePriority.get_level(priority)
 
 def output(patterns, rankers, sq_rules = None):
-	max_key_len = 0
+	max_key_len = 1
+	max_cat_len = 1
 	ranks = {}
 	for key, pattern in patterns.items():
 		l = len(key)
 		if l > max_key_len: max_key_len = l
+		l = len(pattern.category)
+		if l > max_cat_len: max_cat_len = l
 		rank = pattern.get_rank(rankers)
 		if sq_rules and pattern.name in sq_rules:
 			priority = sq_rules[pattern.name].priority
@@ -65,7 +68,7 @@ def output(patterns, rankers, sq_rules = None):
 			'priority': priority,
 			'pattern': pattern
 		}
-	fmt = "{:<2} | {:<" + ('8' if sq_rules else '0') + "} | {:<14} | {:<" + str(max_key_len) + "} | {}"
+	fmt = "{:<2} | {:<" + ('8' if sq_rules else '0') + "} | {:<" + str(max_cat_len) + "} | {:<" + str(max_key_len) + "} | {}"
 	for k, ranked in sorted(ranks.items(), key=lambda i : (i[1].get('rank'), _priority_sortlevel(i[1].get('priority')))):
 		p = ranked['pattern']
 		_out(fmt.format(ranked['rank'], ranked['priority'], p.category, p.name, p.short_desc))
