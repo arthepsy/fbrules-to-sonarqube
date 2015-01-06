@@ -54,10 +54,8 @@ def output(patterns, rankers, sq_rules = None):
 	max_cat_len = 1
 	ranks = {}
 	for key, pattern in patterns.items():
-		l = len(key)
-		if l > max_key_len: max_key_len = l
-		l = len(pattern.category)
-		if l > max_cat_len: max_cat_len = l
+		max_key_len = max(max_key_len, len(key))
+		max_cat_len = max(max_cat_len, len(pattern.category))
 		rank = pattern.get_rank(rankers)
 		if sq_rules and pattern.name in sq_rules:
 			priority = sq_rules[pattern.name].priority
