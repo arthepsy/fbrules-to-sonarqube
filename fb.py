@@ -184,9 +184,9 @@ class FindBugsPlugin():
 	
 	def __repr__(self):
 		attr = '%s' % (self.head.short_id)
-		attr += ',categories=%d' % len(self.categories)
-		attr += ',patterns=%d' % len(self.patterns)
-		attr += ',codes=%d' % len(self.codes)
+		attr += ', categories=%d' % len(self.categories)
+		attr += ', patterns=%d' % len(self.patterns)
+		attr += ', codes=%d' % len(self.codes)
 		return "FindBugsPlugin(%s)" % attr
 	
 	class Head():
@@ -207,9 +207,9 @@ class FindBugsPlugin():
 			return short_id
 		
 		def __repr__(self):
-			attr = '%s,plugin_id=%s' % (self.short_id, self.plugin_id)
-			if self.provider: attr += ',provider="%s"' % self.provider
-			if self.description: attr += ',description="%s"' % self.description
+			attr = '%s, plugin_id=%s' % (self.short_id, self.plugin_id)
+			if self.provider: attr += ', provider="%s"' % self.provider
+			if self.description: attr += ', description="%s"' % self.description
 			return "Head(%s)" % (attr)
 
 		@staticmethod
@@ -238,9 +238,9 @@ class FindBugsPlugin():
 			self.details = details
 		
 		def __repr__(self):
-			attr = '%sname=%s' % ('hidden,' if self.is_hidden else '', self.name)
-			if self.abbr: attr += ',abbr=%s' % self.abbr
-			if self.description: attr += ',description="%s"' % self.description
+			attr = '%sname=%s' % ('hidden, ' if self.is_hidden else '', self.name)
+			if self.abbr: attr += ', abbr=%s' % self.abbr
+			if self.description: attr += ', description="%s"' % self.description
 			return "BugCategory(%s)" % (attr)
 	
 	class BugPattern():
@@ -260,9 +260,9 @@ class FindBugsPlugin():
 		
 		def __repr__(self):
 			attr = 'name=%s' % self.name
-			if self.abbr: attr += ',abbr=%s' % self.abbr
-			if self.category: attr += ',category=%s' % self.category
-			if self.short_desc: attr += ',short_desc="%s"' % self.short_desc
+			if self.abbr: attr += ', abbr=%s' % self.abbr
+			if self.category: attr += ', category=%s' % self.category
+			if self.short_desc: attr += ', short_desc="%s"' % self.short_desc
 			return "BugPattern(%s)" % (attr)
 	
 	class BugCode():
@@ -273,8 +273,8 @@ class FindBugsPlugin():
 		
 		def __repr__(self):
 			attr = 'name=%s' % self.name
-			if self.description: attr += ',description=%s' % self.description
-			if self.cweid > 0: attr += ',cweid=%d' % self.cweid
+			if self.description: attr += ', description=%s' % self.description
+			if self.cweid > 0: attr += ', cweid=%d' % self.cweid
 			return "BugCode(%s)" % (attr)
 	
 	class BugPriority():
