@@ -55,7 +55,7 @@ def output(patterns, rankers, sq_rules = None):
 	ranks = {}
 	for key, pattern in patterns.items():
 		max_key_len = max(max_key_len, len(key))
-		max_cat_len = max(max_cat_len, len(pattern.category))
+		max_cat_len = max(max_cat_len, len(pattern.category_name))
 		rank = pattern.get_rank(rankers)
 		if sq_rules and pattern.name in sq_rules:
 			priority = sq_rules[pattern.name].priority
@@ -69,7 +69,7 @@ def output(patterns, rankers, sq_rules = None):
 	fmt = "{:<2} | {:<" + ('8' if sq_rules else '0') + "} | {:<" + str(max_cat_len) + "} | {:<" + str(max_key_len) + "} | {}"
 	for k, ranked in sorted(ranks.items(), key=lambda i : (i[1].get('rank'), _priority_sortlevel(i[1].get('priority')))):
 		p = ranked['pattern']
-		_out(fmt.format(ranked['rank'], ranked['priority'], p.category, p.name, p.short_desc))
+		_out(fmt.format(ranked['rank'], ranked['priority'], p.category_name, p.name, p.short_desc))
 
 class CmdLine():
 	_type_dir = click.Path(exists=True, file_okay=False, dir_okay=True, readable=True, resolve_path=True)
@@ -94,8 +94,6 @@ class CmdLine():
 		fb_plugins = []
 		for path in plugin_dir:
 			fb_plugin = FindBugsPlugin.parse(path)
-			if os.path.isfile(os.path.join(path, 'bugrank.txt')):
-				fb_plugin.load_ranker(path)
 			fb_plugins.append(fb_plugin)
 		sq_rules = None
 		if rules:

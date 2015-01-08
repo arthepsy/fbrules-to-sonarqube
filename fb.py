@@ -96,12 +96,12 @@ class FindBugsPlugin():
 		self.ranker = FindBugsPlugin.BugRanker()
 	
 	@staticmethod
-	def parse(xml_dir):
-		xml_dir = FbUtils.get_dir(xml_dir)
-		if not os.path.isdir(xml_dir):
-			raise Exception('"%s" does not exist' % xml_dir)
-		findbugs_xml = FbUtils.get_file('findbugs.xml', xml_dir)
-		messages_xml = FbUtils.get_file('messages.xml', xml_dir)
+	def parse(etc_dir):
+		etc_dir = FbUtils.get_dir(etc_dir)
+		if not os.path.isdir(etc_dir):
+			raise Exception('"%s" does not exist' % etc_dir)
+		findbugs_xml = FbUtils.get_file('findbugs.xml', etc_dir)
+		messages_xml = FbUtils.get_file('messages.xml', etc_dir)
 		if not os.path.isfile(findbugs_xml):
 			raise Exception('"%s" does not exist' % findbugs_xml)
 		if not os.path.isfile(messages_xml):
@@ -145,7 +145,7 @@ class FindBugsPlugin():
 			bp_name = FbXml.get_attr_value(plg_xbp, 'type')
 			if not bp_name: continue
 			bp_abbr = FbXml.get_attr_value(plg_xbp, 'abbrev')
-			bp_cat = FbXml.get_attr_value(plg_xbp, 'category')
+			bp_cat_name = FbXml.get_attr_value(plg_xbp, 'category')
 			bp_cweid = FbUtils.parse_int(FbXml.get_attr_value(plg_xbp, 'cweid'))
 			bp_is_exp = (FbXml.get_attr_value(plg_xbp, 'experimental').lower() == 'true')
 			bp_is_old = (FbXml.get_attr_value(plg_xbp, 'deprecated').lower() == 'true')
@@ -158,7 +158,7 @@ class FindBugsPlugin():
 			bp_long_desc = FbXml.get_cnode_text(xmsg, 'LongDescription', clean=True)
 			bp_details = FbXml.get_cnode_text(xmsg, 'Details')
 			
-			pattern = FindBugsPlugin.BugPattern(bp_name, bp_abbr, bp_cat, bp_is_exp, bp_short_desc, bp_long_desc, bp_details, bp_cweid)
+			pattern = FindBugsPlugin.BugPattern(bp_name, bp_abbr, bp_cat_name, bp_is_exp, bp_short_desc, bp_long_desc, bp_details, bp_cweid)
 			pattern.is_deprecated = bp_is_old
 			patterns[bp_name] = pattern
 		
@@ -177,6 +177,9 @@ class FindBugsPlugin():
 			codes[bc_name] = code
 		
 		plugin = FindBugsPlugin(head, categories, patterns, codes)
+		bugrank_file = FbUtils.get_file('bugrank.txt', etc_dir)
+		if os.path.isfile(bugrank_file):
+			plugin.load_ranker(etc_dir)
 		return plugin
 	
 	def load_ranker(self, rank_dir):
@@ -244,10 +247,10 @@ class FindBugsPlugin():
 			return "BugCategory(%s)" % (attr)
 	
 	class BugPattern():
-		def __init__(self, name, abbr, category, is_experimental, short_desc, long_desc, details, cweid):
+		def __init__(self, name, abbr, category_name, is_experimental, short_desc, long_desc, details, cweid):
 			self.name = name
 			self.abbr = abbr
-			self.category = category
+			self.category_name = category_name
 			self.is_experimental = is_experimental
 			self.is_deprecated = False
 			self.short_desc = short_desc
@@ -261,7 +264,7 @@ class FindBugsPlugin():
 		def __repr__(self):
 			attr = 'name=%s' % self.name
 			if self.abbr: attr += ', abbr=%s' % self.abbr
-			if self.category: attr += ', category=%s' % self.category
+			if self.category_name: attr += ', category=%s' % self.category_name
 			if self.short_desc: attr += ', short_desc="%s"' % self.short_desc
 			return "BugPattern(%s)" % (attr)
 	
@@ -322,8 +325,8 @@ class FindBugsPlugin():
 					return rank
 			for r in rankers:
 				if not r: continue
-				rank += r.categories.get(pattern.category)
-				if not r.categories.is_relative(pattern.category):
+				rank += r.categories.get(pattern.category_name)
+				if not r.categories.is_relative(pattern.category_name):
 					return rank
 			priority = FindBugsPlugin.BugRanker._get_priority(pattern)
 			return FindBugsPlugin.BugRanker._adjust_rank(rank, priority)
