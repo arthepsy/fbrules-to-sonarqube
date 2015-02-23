@@ -53,7 +53,7 @@ class SqXml():
 	def get_cnode_text(xnode, child_name, default_value=None, clean=False):
 		xnode = SqXml.get_node(xnode, child_name)
 		return SqXml.get_node_text(xnode, default_value, clean)
-	
+
 class SqUtils():
 	@staticmethod
 	def parse_int(s):
@@ -91,37 +91,107 @@ class SqUtils():
 			p = os.path.join(root, p)
 		return os.path.realpath(p)
 
-class SonarQube():
-	class Rules():
+class SonarQube(object):
+	class Rules(dict):
+		def __init__(self, *args, **kwargs):
+			dict.__init__(self, *args, **kwargs)
+			
 		@staticmethod
-		def parse(rules_xml):
+		def find_dir(plugin_dir):
+			plugin_dir = SqUtils.get_dir(plugin_dir)
+			if not os.path.isdir(plugin_dir):
+				return None
+			rules_xml = SqUtils.get_file('rules.xml', plugin_dir)
+			if os.path.isfile(rules_xml):
+				return plugin_dir
+			pom_xml = SqUtils.get_file('pom.xml', plugin_dir)
+			if not os.path.isfile(pom_xml):
+				return None
+			parser = etree.XMLParser(recover=True)
+			xtree = etree.parse(pom_xml, parser)
+			xroot = xtree.getroot()
+			if xroot is None:
+				return None
+			xnode = xroot.find('{*}artifactId')
+			if xnode is None:
+				return None
+			artifact_name = xnode.text.strip()
+			if artifact_name == 'sonar-findbugs-plugin':
+				rules_dir = os.path.realpath(os.path.join(plugin_dir, 'src', 'main', 'resources', 'org', 'sonar', 'plugins', 'findbugs'))
+				return SonarQube.Rules.find_dir(rules_dir)
+			else:
+				return None
+		
+		@classmethod
+		def parse(cls, rules_xml):
 			rules_xml = SqUtils.get_file(rules_xml)
 			if not os.path.isfile(rules_xml):
 				raise Exception('"%s" does not exist' % rules_xml)
 			xtree = etree.parse(rules_xml)
 			xroot = xtree.getroot()
 			
-			rules = {}
+			rules = cls()
 			for xrule in xroot.iterfind('rule'):
 				rule = SonarQube.Rule.parse(xrule)
 				if rule:
 					rules[rule.key] = rule
 			return rules
 	
-	class Rule():
+	class Rule(object):
 		def __init__(self, key, config_key, priority, status, cardinality, name, description):
-			self.key = key
-			self.config_key = config_key if config_key else key
-			self.priority = SonarQube.RulePriority.get(priority)
-			self.status = SonarQube.RuleStatus.get(status)
-			self.cardinality = cardinality
-			self.name = name
-			self.description = description
-			self.tags = []
-			self.params = {}
+			self.__key = key
+			self.__config_key = config_key if config_key else key
+			self.__priority = SonarQube.RulePriority.get(priority)
+			self.__status = SonarQube.RuleStatus.get(status)
+			self.__cardinality = cardinality
+			self.__name = name
+			self.__description = description
+			self.__tags = []
+			self.__params = {}
+			self.__index = 0
 		
-		@staticmethod
-		def parse(xrule):
+		@property
+		def key(self):
+			return self.__key
+		
+		@property
+		def config_key(self):
+			return self.__config_key
+		
+		@property
+		def priority(self):
+			return self.__priority
+		
+		@property
+		def status(self):
+			return self.__status
+		
+		@property
+		def cardinality(self):
+			return self.__cardinality
+		
+		@property
+		def name(self):
+			return self.__name
+		
+		@property
+		def description(self):
+			return self.__description
+		
+		@property
+		def tags(self):
+			return self.__tags
+		
+		@property
+		def params(self):
+			return self.__params
+		
+		@property
+		def index(self):
+			return self.__index
+		
+		@classmethod
+		def parse(cls, xrule):
 			key = SqXml.get_attr_value(xrule, 'key')
 			v = SqXml.get_cnode_text(xrule, 'key')
 			if v and not key: key = v
@@ -142,9 +212,11 @@ class SonarQube():
 			for xparam in SqXml.get_nodes(xrule, 'param'):
 				param = SonarQube.RuleParam.parse(xparam)
 				if param: params[param.key] = param
-			rule = SonarQube.Rule(key, config_key, priority, status, cardinality, name, description)
-			rule.tags = tags
-			rule.params = params
+			index = xrule.getparent().index(xrule)
+			rule = cls(key, config_key, priority, status, cardinality, name, description)
+			rule.__tags = tags
+			rule.__params = params
+			rule.__index = index + 1
 			return rule
 		
 		def __repr__(self):
@@ -154,15 +226,31 @@ class SonarQube():
 				attr += ', status=%s' % (self.status)
 			return "Rule(%s)" % attr
 	
-	class RuleParam():
+	class RuleParam(object):
 		def __init__(self, key, ptype, description, default_value):
-			self.key = key
-			self.ptype = SonarQube.PropertyType.get(ptype)
-			self.description = description
-			self.default_value = default_value
+			self.__key = key
+			self.__ptype = SonarQube.PropertyType.get(ptype)
+			self.__description = description
+			self.__default_value = default_value
 		
-		@staticmethod
-		def parse(xparam):
+		@property
+		def key(self):
+			return self.__key
+		
+		@property
+		def ptype(self):
+			return self.__ptype
+		
+		@property
+		def description(self):
+			return self.__description
+		
+		@property
+		def default_value(self):
+			return self.__default_value
+		
+		@classmethod
+		def parse(cls, xparam):
 			key = SqXml.get_attr_value(xparam, 'key')
 			v = SqXml.get_cnode_text(xparam, 'key')
 			if v and not key: key = v
@@ -172,63 +260,77 @@ class SonarQube():
 			if v and not ptype: ptype = v
 			description = SqXml.get_cnode_text(xparam, 'description')
 			default_value = SqXml.get_cnode_text(xparam, 'defaultValue') or None
-			param = SonarQube.RuleParam(key, ptype, description, default_value)
+			param = cls(key, ptype, description, default_value)
 			return param
 	
-	class RulePriority():
+	class RulePriority(object):
 		DEFAULT = 'INFO'
 		ALL = ['BLOCKER', 'CRITICAL', 'MAJOR', 'MINOR', 'INFO']
 		
-		@staticmethod
-		def get(priority):
+		@classmethod
+		def get(cls, priority):
 			if priority is not None: 
 				priority = priority.upper()
-				if priority in SonarQube.RulePriority.ALL:
+				if priority in cls.ALL:
 					return priority
-			return SonarQube.RulePriority.DEFAULT
+			return cls.DEFAULT
 		
-		@staticmethod
-		def get_level(priority):
+		@classmethod
+		def get_level(cls, priority):
 			try:
-				return SonarQube.RulePriority.ALL.index(priority)
+				return cls.ALL.index(priority)
 			except:
-				priority = SonarQube.RulePriority.get(priority)
-				return SonarQube.RulePriority.get_level(priority)
+				priority = cls.get(priority)
+				return cls.get_level(priority)
 	
-	class RuleStatus():
+	class RuleStatus(object):
 		DEFAULT = 'READY'
 		ALL = ['READY', 'BETA', 'DEPRECATED', 'REMOVED']
 		
-		@staticmethod
-		def get(status):
+		@classmethod
+		def get(cls, status):
 			if status is not None: 
 				status = status.upper()
-				if status in SonarQube.RuleStatus.ALL:
+				if status in cls.ALL:
 					return status
-			return SonarQube.RuleStatus.DEFAULT
+			return cls.DEFAULT
 		
-		@staticmethod
-		def get_level(status):
+		@classmethod
+		def get_level(cls, status):
 			try:
-				return SonarQube.RuleStatus.ALL.index(status)
+				return cls.ALL.index(status)
 			except:
-				status = SonarQube.RuleStatus.get(status)
-				return SonarQube.RuleStatus.get_level(status)
+				status = cls.get(status)
+				return cls.get_level(status)
 
-	class PropertyType():
+	class PropertyType(object):
 		DEFAULT = 'STRING'
 		ALL = ['STRING', 'TEXT', 'PASSWORD', 'BOOLEAN', 'INTEGER', 'FLOAT', 
 		       'METRIC', 'LICENSE', 'REGULAR_EXPRESSION', 'PROPERTY_SET']
 		OLD = {'I': 'INTEGER', 'S': 'STRING', 'B': 'BOOLEAN', 'R': 'REGULAR_EXPRESSION'}
 		
-		@staticmethod
-		def get(ptype):
+		@classmethod
+		def get(cls, ptype):
 			if ptype is not None:
 				ptype = ptype.upper()
 				if ptype == 'I{}': return 'i{}'
 				if ptype == 'S{}': return 's{}'
-				if ptype in SonarQube.PropertyType.OLD:
-					return SonarQube.PropertyType.OLD[ptype]
-				if ptype in SonarQube.PropertyType.ALL:
+				if ptype in cls.OLD:
+					return cls.OLD[ptype]
+				if ptype in cls.ALL:
 					return ptype
-			return SonarQube.PropertyType.DEFAULT
+			return cls.DEFAULT
+	
+	class RuleProfile(object):
+		@staticmethod
+		def find_dir(plugin_dir):
+			return SonarQube.Rules.find_dir(plugin_dir)
+	
+	class RuleProperties(object):
+		@staticmethod
+		def find_dir(plugin_dir):
+			rules_dir = SonarQube.Rules.find_dir(plugin_dir)
+			if rules_dir is None:
+				return None
+			
+			return os.path.realpath(os.path.join(rules_dir, '..', '..', 'l10n'))
