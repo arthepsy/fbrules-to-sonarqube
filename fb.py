@@ -38,10 +38,10 @@ class FbXml():
 	@staticmethod
 	def get_node_text(xnode, default_value=None, clean=False):
 		if xnode is not None and xnode.text is not None:
-			value = xnode.text.strip()
+			value = xnode.text
 		else:
 			value = ''
-		if len(value) == 0 and default_value is not None:
+		if len(value.strip()) == 0 and default_value is not None:
 			value = default_value
 		return FbUtils.get_clean(value) if clean else value
 	
@@ -49,7 +49,8 @@ class FbXml():
 	def get_cnode_text(xnode, child_name, default_value=None, clean=False):
 		xnode = FbXml.get_node(xnode, child_name)
 		return FbXml.get_node_text(xnode, default_value, clean)
-	
+
+
 class FbUtils():
 	@staticmethod
 	def parse_int(s):
@@ -94,6 +95,42 @@ class FindBugsPlugin():
 		self.patterns = patterns
 		self.codes = codes
 		self.ranker = FindBugsPlugin.BugRanker()
+	
+	@staticmethod
+	def find_conf_dir(plugin_dir):
+		plugin_dir = FbUtils.get_dir(plugin_dir)
+		if not os.path.isdir(plugin_dir):
+			return None
+		findbugs_xml = FbUtils.get_file('findbugs.xml', plugin_dir)
+		messages_xml = FbUtils.get_file('messages.xml', plugin_dir)
+		if os.path.isfile(findbugs_xml) and os.path.isfile(messages_xml):
+			return plugin_dir
+		pom_xml = FbUtils.get_file('pom.xml', plugin_dir)
+		if not os.path.isfile(pom_xml):
+			return None
+		parser = etree.XMLParser(recover=True)
+		xtree = etree.parse(pom_xml, parser)
+		xroot = xtree.getroot()
+		if xroot is None:
+			return None
+		xnode = xroot.find('{*}artifactId')
+		if xnode is None:
+			return None
+		artifact_name = xnode.text.strip()
+		if artifact_name == 'findbugs-project':
+			plugin_dir = FbUtils.get_dir(os.path.join(plugin_dir, 'findbugs', 'etc'))
+			return FindBugsPlugin.find_conf_dir(plugin_dir)
+		elif artifact_name == 'findbugs':
+			plugin_dir = FbUtils.get_dir(os.path.join(plugin_dir, 'etc'))
+			return FindBugsPlugin.find_conf_dir(plugin_dir)
+		elif artifact_name == 'fb-contrib':
+			plugin_dir = FbUtils.get_dir(os.path.join(plugin_dir, 'etc'))
+			return FindBugsPlugin.find_conf_dir(plugin_dir)
+		elif artifact_name == 'findsecbugs-root-pom':
+			plugin_dir = FbUtils.get_dir(os.path.join(plugin_dir, 'plugin', 'src', 'main', 'resources', 'metadata'))
+			return FindBugsPlugin.find_conf_dir(plugin_dir)
+		else:
+			return None
 	
 	@staticmethod
 	def parse(etc_dir):
@@ -157,9 +194,13 @@ class FindBugsPlugin():
 			bp_short_desc = FbXml.get_cnode_text(xmsg, 'ShortDescription', clean=True)
 			bp_long_desc = FbXml.get_cnode_text(xmsg, 'LongDescription', clean=True)
 			bp_details = FbXml.get_cnode_text(xmsg, 'Details')
+			bp_pattern_index = plg_xbp.getparent().index(plg_xbp) + 1
+			bp_message_index = xmsg.getparent().index(xmsg) + 1
 			
 			pattern = FindBugsPlugin.BugPattern(bp_name, bp_abbr, bp_cat_name, bp_is_exp, bp_short_desc, bp_long_desc, bp_details, bp_cweid)
 			pattern.is_deprecated = bp_is_old
+			pattern.pattern_index = bp_pattern_index
+			pattern.message_index = bp_message_index
 			patterns[bp_name] = pattern
 		
 		codes = {}
@@ -257,6 +298,8 @@ class FindBugsPlugin():
 			self.long_desc = long_desc
 			self.details = details
 			self.cweid = cweid
+			self.pattern_index = 0
+			self.message_index = 0
 		
 		def get_rank(self, rankers):
 			return FindBugsPlugin.BugRanker.rank_pattern(self, rankers)
