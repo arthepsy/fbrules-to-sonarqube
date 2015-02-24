@@ -22,6 +22,8 @@ if [ -d "${_odir}" ]; then
 	find "${_odir}" -name "rules*.xml" -exec cp "{}" "${_dir1}/" \;
 	find "${_odir}" -name "profile-findbugs.xml" -exec cp "{}" "${_dir1}/" \;
 	find "${_odir}" -name "findbugs.properties" -exec cp "{}" "${_dir2}/" \;
-	find "${_odir}/html/findbugs/" -name "*.html" -exec cp "{}" "${_dir3}/" \;
+	if [ -d "${_odir}/home/findbugs" ]; then
+		find "${_odir}/html/findbugs/" -name "*.html" -exec cp "{}" "${_dir3}/" \;
+	fi
 fi
 
