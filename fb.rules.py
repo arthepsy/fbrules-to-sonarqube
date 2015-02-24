@@ -163,10 +163,6 @@ def extract(fb_plugin_dir, sq_plugin_dir):
 		if output.endswith(':::'):
 			output = output[:-1]
 		_out(output)
-		
-	# rule_key:sq_rule_nr:sq_prop_nr:sq_prof_nr:priority:status:reason:tags
-	#_out(fb_plugin.patterns)
-	#_out(sq_rules)
 
 
 class CmdLine():
