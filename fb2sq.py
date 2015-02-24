@@ -102,6 +102,7 @@ def init(args):
 					disabled_rules[rule_key] = True
 				elif state == 'EXPERIMENTAL':
 					experimental_rules[rule_key] = True
+					disabled_rules[rule_key] = True
 				else:
 					sys.exit('error: "%s" is invalid rule state.' % state)
 			if (len(props) < 8): continue
@@ -201,7 +202,7 @@ def get_deprecation_text(rule_key):
 	if rule_key in deprecated_rules:
 		reason = deprecated_rules[rule_key]
 		if reason == 'ByFindBugsPlugin':
-			text = '\n\n<p>\nThis rule is deprecated by FindBugs.\n</p>\n'
+			text = ''
 		else:
 			text = '},{rule:squid:'.join(filter(None, reason.split(',')))
 			text = '{rule:squid:' + text + '}'
@@ -328,6 +329,8 @@ def parse_rules(args, fb_plugin, prefix):
 				rule.write('    <tag>%s</tag>\n' % rule_tag)
 		if sq_key in deprecated_rules:
 			rule.write('    <status>DEPRECATED</status>\n')
+		elif sq_key in experimental_rules:
+			rule.write('    <status>BETA</status>\n')
 		if not findbugs_core:
 			rule.write('    <description><![CDATA[\n\n%s\n\n\t\t]]></description>\n' % sq_descr_xml)
 		rule.write('  </rule>\n\n')
