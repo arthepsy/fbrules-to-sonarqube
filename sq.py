@@ -159,7 +159,7 @@ class SonarQube(object):
 						continue
 					current_value = getattr(rule, prop_name).strip()
 					if len(current_value) == 0 or prop_value != current_value:
-						rule._setattr(rule, prop_name, prop_value)
+						rule._setattr(prop_name, prop_value)
 		
 		def _parse_html(self, html_dir):
 			if html_dir is None: 
