@@ -95,7 +95,7 @@ class SonarQube(object):
 	class Rules(dict):
 		def __init__(self, *args, **kwargs):
 			dict.__init__(self, *args, **kwargs)
-			
+		
 		@staticmethod
 		def find_dir(plugin_dir):
 			plugin_dir = SqUtils.get_dir(plugin_dir)
@@ -122,8 +122,61 @@ class SonarQube(object):
 			else:
 				return None
 		
+		def _parse_properties(self, prop_file):
+			if prop_file is None:
+				return
+			prop_file = SqUtils.get_file(prop_file)
+			if not os.path.isfile(prop_file):
+				raise Exception('"%s" does not exist' % prop_file)
+			with open(prop_file, 'r') as f:
+				idx = 0
+				for line in f:
+					line = line.strip().split('=', 1)
+					parts = line[0].split('.')
+					if len(line) != 2 or len(parts) != 4: 
+						continue
+					bug_pattern = parts[2]
+					idx += 1
+					if not bug_pattern in self: 
+						continue
+					rule = self[bug_pattern]
+					if rule.properties_index == 0:
+						rule._setattr('properties_index', idx)
+					prop_value = line[1].strip()
+					if len(prop_value) == 0:
+						continue
+					prop_name = parts[3].strip()
+					if not hasattr(rule, prop_name):
+						continue
+					current_value = getattr(rule, prop_name).strip()
+					if len(current_value) == 0 or prop_value != current_value:
+						rule._setattr(rule, prop_name, prop_value)
+		
+		def _parse_html(self, html_dir):
+			if html_dir is None: 
+				return
+			html_dir = SqUtils.get_dir(html_dir)
+			for fn in os.listdir(html_dir):
+				fp = os.path.join(html_dir, fn)
+				if not os.path.isfile(fp):
+					continue
+				file_name, file_ext = os.path.splitext(fn)
+				if file_ext != '.html':
+					continue
+				bug_pattern = file_name
+				if not bug_pattern in self:
+					continue
+				rule = self[bug_pattern]
+				current_value = rule.description.strip()
+				if len(current_value) > 0:
+					continue
+				with open(fp, 'r') as f:
+					content = f.read().strip()
+					if len(content) > 0:
+						rule._setattr('description', content)
+		
 		@classmethod
-		def parse(cls, rules_xml):
+		def parse(cls, rules_xml, prop_file = None, html_dir = None):
 			rules_xml = SqUtils.get_file(rules_xml)
 			if not os.path.isfile(rules_xml):
 				raise Exception('"%s" does not exist' % rules_xml)
@@ -135,6 +188,10 @@ class SonarQube(object):
 				rule = SonarQube.Rule.parse(xrule)
 				if rule:
 					rules[rule.key] = rule
+			rules._parse_properties(prop_file)
+			rules._parse_html(html_dir)
+			for rule in rules.values():
+				rule._update_properties()
 			return rules
 	
 	class Rule(object):
@@ -146,9 +203,11 @@ class SonarQube(object):
 			self.__cardinality = cardinality
 			self.__name = name
 			self.__description = description
+			self.__deprecated_by = []
 			self.__tags = []
 			self.__params = {}
-			self.__index = 0
+			self.__pattern_index = 0
+			self.__properties_index = 0
 		
 		@property
 		def key(self):
@@ -179,6 +238,10 @@ class SonarQube(object):
 			return self.__description
 		
 		@property
+		def deprecated_by(self):
+			return self.__deprecated_by
+		
+		@property
 		def tags(self):
 			return self.__tags
 		
@@ -187,8 +250,31 @@ class SonarQube(object):
 			return self.__params
 		
 		@property
-		def index(self):
-			return self.__index
+		def pattern_index(self):
+			return self.__pattern_index
+		
+		@property
+		def properties_index(self):
+			return self.__properties_index
+		
+		def _setattr(self, attr_name, attr_value):
+			if hasattr(self, attr_name):
+				setattr(self, '_{0}__{1}'.format(self.__class__.__name__, attr_name), attr_value)
+		
+		def _update_properties(self):
+			prefix = 'This rule is deprecated, use '
+			postfix = ' instead.'
+			rule_pattern = '{rule:squid:([^}]*)}'
+			pattern = prefix + rule_pattern + ' and ' + rule_pattern + postfix
+			mx = re.search(pattern, self.description)
+			if mx is not None:
+				self.__deprecated_by.append(mx.group(1))
+				self.__deprecated_by.append(mx.group(2))
+			else:
+				pattern = prefix + rule_pattern + postfix
+				mx = re.search(pattern, self.description)
+				if mx is not None:
+					self.__deprecated_by.append(mx.group(1))
 		
 		@classmethod
 		def parse(cls, xrule):
@@ -212,11 +298,11 @@ class SonarQube(object):
 			for xparam in SqXml.get_nodes(xrule, 'param'):
 				param = SonarQube.RuleParam.parse(xparam)
 				if param: params[param.key] = param
-			index = xrule.getparent().index(xrule)
+			pattern_index = xrule.getparent().index(xrule)
 			rule = cls(key, config_key, priority, status, cardinality, name, description)
 			rule.__tags = tags
 			rule.__params = params
-			rule.__index = index + 1
+			rule.__pattern_index = pattern_index + 1
 			return rule
 		
 		def __repr__(self):
@@ -321,16 +407,45 @@ class SonarQube(object):
 					return ptype
 			return cls.DEFAULT
 	
-	class RuleProfile(object):
+	class RulesProfile(dict):
+		def __init__(self, *args, **kwargs):
+			dict.__init__(self, *args, **kwargs)
+		
 		@staticmethod
 		def find_dir(plugin_dir):
 			return SonarQube.Rules.find_dir(plugin_dir)
-	
-	class RuleProperties(object):
-		@staticmethod
-		def find_dir(plugin_dir):
-			rules_dir = SonarQube.Rules.find_dir(plugin_dir)
-			if rules_dir is None:
-				return None
+		
+		@classmethod
+		def parse(cls, profile_xml):
+			rules_xml = SqUtils.get_file(profile_xml)
+			if not os.path.isfile(rules_xml):
+				raise Exception('"%s" does not exist' % profile_xml)
+			xtree = etree.parse(profile_xml)
+			xroot = xtree.getroot()
 			
-			return os.path.realpath(os.path.join(rules_dir, '..', '..', 'l10n'))
+			rules = cls()
+			for xbug in xtree.xpath('/FindBugsFilter/Match/Bug'):
+				bug_pattern = SqXml.get_attr_value(xbug, 'pattern')
+				if not bug_pattern: continue
+				idx = len(rules) + 1
+				rules[bug_pattern] = SonarQube.RuleProfileItem(bug_pattern, idx)
+			return rules
+	
+	class RuleProfileItem(object):
+		def __init__(self, key, index):
+			self.__key = key
+			self.__index = index
+		
+		@property
+		def key(self):
+			return self.__key
+		
+		@property
+		def index(self):
+			return self.__index
+		
+		def __str__(self):
+			return self.key
+		
+		def __repr__(self):
+			return '{0}(key={1}, index={2})'.format(self.__class__.__name__, self.key, self.index)
