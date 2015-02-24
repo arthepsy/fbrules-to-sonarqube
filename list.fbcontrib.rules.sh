@@ -11,7 +11,7 @@ if [ X"$2" = X"" ]; then
 fi
 _cdir=$(cd -- "$(dirname "$0")" && pwd)
 if [ X"$3" != X"" ]; then
-	"${_cdir}/fb.rules.py" "$1/findbugs/etc" "$2/etc" -r "$3/src/main/resources/org/sonar/plugins/findbugs/rules-fbcontrib.xml"
+	"${_cdir}/fb.rules.py" list "$1" "$2" -s "$3"
 else
-	"${_cdir}/fb.rules.py" "$1/findbugs/etc" "$2/etc"
+	"${_cdir}/fb.rules.py" list "$1" "$2"
 fi
