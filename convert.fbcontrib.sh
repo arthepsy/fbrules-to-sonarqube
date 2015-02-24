@@ -5,4 +5,4 @@ if [ X"$1" = X"" ]; then
 fi
 
 _cdir=$(cd -- "$(dirname "$0")" && pwd)
-"${_cdir}/fb2sq.py" -e CD_CIRCULAR_DEPENDENCY --html --tidy "$1/etc"
+"${_cdir}/fb2sq.py" -e CD_CIRCULAR_DEPENDENCY --html --tidy "${_cdir}/sq_rules.fbcontrib.dat" "$1/etc"

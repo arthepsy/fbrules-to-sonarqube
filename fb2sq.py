@@ -5,8 +5,9 @@ import argparse
 from cStringIO import StringIO
 from lxml import etree
 
+from fb import FindBugsPlugin
+
 output_dir = 'build'
-sq_rule_file = 'sq_rules.dat'
 
 category_names = {"BAD_PRACTICE":"Bad practice",
                   "CORRECTNESS":"Correctness",
@@ -19,23 +20,23 @@ category_names = {"BAD_PRACTICE":"Bad practice",
                   "STYLE": "Style"}
 valid_priorities = {"BLOCKER":1, "CRITICAL":1, "MAJOR":1, "MINOR":1, "INFO":1}
 
-rule_categories = {}
 rule_priorities = {}
 rule_tags = {}
 
 deprecated_rules = {}
 disabled_rules = {}
+experimental_rules = {}
 rule_order = {}
 
 
 def parse_args():
 	parser = argparse.ArgumentParser(
 		description='Convert FindBugs rules to SonarQube rules.', 
-		usage='%(prog)s [--html] fbrules-directory [component-name]', 
+		usage='%(prog)s [--html] <data-file> <fbrules-dir>', 
 		formatter_class=lambda prog: argparse.HelpFormatter(prog, max_help_position=30)
 	)
-	parser.add_argument('fbrules_dir', metavar='fbrules-directory', help='directory which contains findbugs.xml and messages.xml')
-	parser.add_argument('component_name', metavar='component-name', nargs='?', help='component name (core, fb-contrib, find-sec-bugs, ...)')
+	parser.add_argument('data_file', metavar='data-file', help='rules data file')
+	parser.add_argument('fbrules_dir', metavar='fbrules-dir', help='directory which contains findbugs.xml and messages.xml')
 	parser.add_argument('--html', help='export HTML files and relevant properties file', action='store_true')
 	parser.add_argument('--tidy', help='tidy HTML files', action='store_true')
 	parser.add_argument('-e', '--exclude', metavar='KEY', help='rule key to completely exclude', action='append')
@@ -56,30 +57,22 @@ def getint(s):
 		return 0
 
 def init(args):
-	fbplugin_xml = os.path.join(args.fbrules_dir, 'findbugs.xml')
-	if not os.path.exists(fbplugin_xml):
-		sys.exit('error: "%s" does not exist' % fbplugin_xml)
-	
-	messages_xml = os.path.join(args.fbrules_dir, 'messages.xml')
-	if not os.path.exists(messages_xml):
-		sys.exit('error: "%s" does not exist' % messages_xml)
+	sq_rule_file = args.data_file
+	path = args.fbrules_dir
+	fb_plugin = FindBugsPlugin.parse(path)
 	
 	if not create_output_dir():
 		sys.exit('error: could not create directory for output')
 	
-	tree = etree.parse(fbplugin_xml)
-	root = tree.getroot()
-	prefix = get_prefix(root, args.component_name)
+	prefix = fb_plugin.head.short_id
+	if prefix == 'core':
+		prefix = 'findbugs'
 	
 	if args.html:
 		if not create_html_dir(prefix):
 			sys.exit('error: could not create directory for html files')
 	
-	for e in root.iter("BugPattern"):
-		rule_categories[e.get('type')] = e.get('category')
-	
 	if os.path.exists(sq_rule_file):
-		#prog = re.compile(r'^([^:]*):(.*)$')
 		for line in open(sq_rule_file):
 			if line.startswith('#'): continue
 			props = line.split(':')
@@ -97,13 +90,18 @@ def init(args):
 			if (len(priority) > 0):
 				rule_priorities[rule_key] = priority
 			if (len(props) < 6): continue
-			state = props[5].strip()
-			if (state):
+			states = props[5].strip()
+			for state in states.split(','):
+				if not state.strip(): continue
 				if state == 'DEPRECATED':
 					reason = props[6].strip() if len(props) > 6 else ''
+					if len(reason) > 0:
+						reason = reason.replace(',NotInSonarProfile', '').replace('NotInSonarProfile', '')
 					deprecated_rules[rule_key] = reason
 				elif state == 'DISABLED':
 					disabled_rules[rule_key] = True
+				elif state == 'EXPERIMENTAL':
+					experimental_rules[rule_key] = True
 				else:
 					sys.exit('error: "%s" is invalid rule state.' % state)
 			if (len(props) < 8): continue
@@ -111,7 +109,7 @@ def init(args):
 			if len(tags) > 0:
 				rule_tags[rule_key] = tags
 	
-	return [messages_xml, prefix]
+	return [fb_plugin, prefix]
 
 def create_output_dir():
 	try:
@@ -153,16 +151,33 @@ def get_prefix(root, defined_prefix):
 		prefix = 'findbugs'
 	return prefix
 
-def get_category_name(rule_key):
-	category = ''
-	if rule_key in rule_categories:
-		category = rule_categories[rule_key].strip()
+category_override = {"NOISE": "Noise"}
+category_fallback = {
+	"CORRECTNESS": "Correctness",
+	# "NOISE": "Bogus random noise",
+	"SECURITY": "Security",
+	"BAD_PRACTICE": "Bad practice",
+	"STYLE": "Dodgy code",
+	"PERFORMANCE": "Performance",
+	"MALICIOUS_CODE": "Malicious code vulnerability",
+	"MT_CORRECTNESS": "Multithreaded correctness",
+	"I18N": "Internationalization",
+	"EXPERIMENTAL": "Experimental"
+}
+
+def get_category_name(fb_plugin, fb_pattern):
+	category = fb_pattern.category_name.strip().upper()
 	if len(category) == 0:
 		category = 'MISCELLANEOUS'
-	if category in category_names:
-		return category_names[category]
+	if category in category_override:
+		category = category_override[category]
+	elif category in fb_plugin.categories:
+		category = fb_plugin.categories[category].description
+	if category in category_fallback:
+		category = category_fallback[category]
 	else:
-		return category[0] + category[1:].lower()
+		category = category[0] + category[1:].lower().replace('_', ' ')
+	return category
 
 def get_priority(rule_key):
 	if rule_key in rule_priorities:
@@ -185,23 +200,26 @@ def get_deprecation_text(rule_key):
 	text = ''
 	if rule_key in deprecated_rules:
 		reason = deprecated_rules[rule_key]
-		#reason = ',,,'
-		text = '},{rule:squid:'.join(filter(None, reason.split(',')))
-		text = '{rule:squid:' + text + '}'
-		text = text.replace('{rule:squid:}', '').strip()
-		comma = text.rfind(',')
-		if comma > -1:
-			text = text[:comma] + ' and ' + text[comma+1:]
-		if len(text) > 0:
-			text = '\n\n<p>\nThis rule is deprecated, use %s instead.\n</p>\n' % text
+		if reason == 'ByFindBugsPlugin':
+			text = '\n\n<p>\nThis rule is deprecated by FindBugs.\n</p>\n'
+		else:
+			text = '},{rule:squid:'.join(filter(None, reason.split(',')))
+			text = '{rule:squid:' + text + '}'
+			text = text.replace('{rule:squid:}', '').strip()
+			comma = text.rfind(',')
+			if comma > -1:
+				text = text[:comma] + ' and ' + text[comma+1:]
+			if len(text) > 0:
+				text = '\n\n<p>\nThis rule is deprecated, use %s instead.\n</p>\n' % text
 	return text
 
 def fix_html_descr(html, use_tidy):
 	if use_tidy:
 		from tidylib import tidy_fragment
 		fragment, errors = tidy_fragment(html)
+		#print "YEAH!" 
 		return fragment
-	
+	print "--------------"
 	#html = re.sub(r'    ','\t', html) # tabify
 	html = re.sub(r'^[ ]+<p>', '<p>', html)
 	lines = html.split('\n')
@@ -215,32 +233,20 @@ def fix_html_descr(html, use_tidy):
 	#html = re.sub(r'<p>([^\n]*)\n[\t ]*</p>', '<p>###\\1</p>', html)
 	return html
 
-def get_description(rule_key, details_node, use_tidy):
-	descr_raw = details_node.text.lstrip('\r\n').rstrip('\r\n')
-	if len(descr_raw.strip()) == 0:
-		subxml = etree.fromstring(etree.tostring(details_node))
-		etree.cleanup_namespaces(subxml)
-		descr_raw = ''.join([etree.tostring(e, pretty_print=False) for e in subxml])
-		if len(descr_raw.strip()) == 0:
-			descr_xml = descr_raw
-			descr_html = rule_key
-		else:
-			descr_xml = descr_raw
-			descr_html = re.sub(r'\n            ', '\n', ''.join([etree.tostring(e, pretty_print=False) for e in subxml]))
-	else:
-		descr_xml = descr_raw
-		descr_xml = re.sub(r'[\t ]+\n', '\n', descr_xml)
-		descr_xml = descr_xml.lstrip('\r\n').rstrip()
-		
-		descr_html = fix_html_descr(descr_xml, use_tidy)
-		
+def get_description(rule_key, details, use_tidy):
+	descr_xml = details.lstrip('\r\n').rstrip('\r\n')
+	descr_xml = re.sub(r'[\t ]+\n', '\n', descr_xml)
+	descr_xml = descr_xml.lstrip('\r\n').rstrip()
+	#use_tidy = False
+	if len(descr_xml.strip()) == 0:
+		descr_xml = rule_key
+	descr_html = fix_html_descr(descr_xml, use_tidy)
 	if rule_key in deprecated_rules:
 		reason = get_deprecation_text(rule_key)
 		descr_xml = descr_xml + reason
 		descr_html = descr_html + reason
 	
 	return [descr_xml, descr_html]
-
 
 def get_writer(ordered, nr):
 	if not nr in ordered:
@@ -264,7 +270,7 @@ def parse_keys(value):
 				parsed_keys[key] = True
 	return parsed_keys
 
-def parse_rules(args, messages_xml, prefix):
+def parse_rules(args, fb_plugin, prefix):
 	
 	exclude_keys = parse_keys(args.exclude)
 	comment_keys = parse_keys(args.comment)
@@ -276,20 +282,15 @@ def parse_rules(args, messages_xml, prefix):
 	properties_file = os.path.join(output_dir, filename)
 	profile_file = os.path.join(output_dir, 'profile-%s.xml' % prefix)
 	
-	#parser = etree.XMLParser(ns_clean=True, strip_cdata=False, compact=False, remove_blank_text=True)
-	#tree = etree.parse(messages_xml, parser)
-	tree = etree.parse(messages_xml)
-	root = tree.getroot()
-
 	orules = {0:StringIO(), '_max':0}
 	oprops = {0:StringIO(), '_max':0}
 	oprofs = {0:StringIO(), '_max':0}
 	
-	for e in root.iter("BugPattern"):
-		fb_details =  e.find("Details")
-		fb_shortdescr =  e.find("ShortDescription")
-		fb_key = e.get("type")
+	for fb_pattern in sorted(fb_plugin.patterns.values(), key=lambda i:i.message_index):
+		fb_key = fb_pattern.name
 		if fb_key in exclude_keys: continue
+		fb_details =  fb_pattern.details
+		fb_shortdescr =  fb_pattern.short_desc
 		
 		sq_key = fb_key
 		[sq_rule_nr, sq_prop_nr, sq_prof_nr] = get_order(sq_key)
@@ -298,8 +299,9 @@ def parse_rules(args, messages_xml, prefix):
 		prof = get_writer(oprofs, sq_prof_nr)
 		
 		sq_priority = get_priority(sq_key)
-		sq_cat = get_category_name(sq_key)
-		sq_name = sq_cat + " - " + fb_shortdescr.text.strip()
+		sq_cat = get_category_name(fb_plugin, fb_pattern)
+		
+		sq_name = sq_cat + " - " + fb_shortdescr.strip()
 		sq_config_key = sq_key
 		[sq_descr_xml, sq_descr_html] = get_description(sq_key, fb_details, args.tidy)
 		
