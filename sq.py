@@ -97,6 +97,15 @@ class SonarQube(object):
 			dict.__init__(self, *args, **kwargs)
 		
 		@staticmethod
+		def get_file(rules_dir, short_plugin_id = None):
+			file_name = 'rules.xml'
+			if short_plugin_id == 'fbcontrib':
+				file_name = 'rules-fbcontrib.xml'
+			elif short_plugin_id == 'findsecbugs':
+				file_name = 'rules-findsecbugs.xml'
+			return SqUtils.get_file(os.path.join(rules_dir, file_name))
+		
+		@staticmethod
 		def find_dir(plugin_dir):
 			plugin_dir = SqUtils.get_dir(plugin_dir)
 			if not os.path.isdir(plugin_dir):
